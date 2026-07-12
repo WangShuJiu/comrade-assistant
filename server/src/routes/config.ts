@@ -1,0 +1,66 @@
+import { FastifyInstance, FastifyRequest } from "fastify";
+import { getDb } from "../services/database.js";
+import { getDefaultSystemPrompt } from "../services/cost.js";
+
+interface AppConfig {
+  deepseekApiKey: string;
+  qwenApiKey: string;
+  deepseekModel: string;
+  qwenModel: string;
+  temperature: number;
+  maxTokens: number;
+  maxRounds: number;
+  budget: number;
+  systemPrompt: string;
+}
+
+const DEFAULT_CONFIG: AppConfig = {
+  deepseekApiKey: "",
+  qwenApiKey: "",
+  deepseekModel: "deepseek-v4-pro",
+  qwenModel: "qwen-vl-plus",
+  temperature: 0.3,
+  maxTokens: 8192,
+  maxRounds: 10,
+  budget: 100,
+  systemPrompt: getDefaultSystemPrompt(),
+};
+
+export function registerConfigRoutes(server: FastifyInstance, dataDir: string) {
+  const db = () => getDb(dataDir);
+
+  server.get("/api/config", async () => {
+    const row = db().prepare(`SELECT value FROM config WHERE key = 'app'`).get() as { value: string } | undefined;
+    if (!row) return DEFAULT_CONFIG;
+
+    try {
+      const parsed = JSON.parse(row.value);
+      return { ...DEFAULT_CONFIG, ...parsed };
+    } catch {
+      return DEFAULT_CONFIG;
+    }
+  });
+
+  server.post("/api/config", async (req: FastifyRequest) => {
+    const body = req.body as Partial<AppConfig>;
+    const existingRow = db().prepare(`SELECT value FROM config WHERE key = 'app'`).get() as { value: string } | undefined;
+
+    let existing = DEFAULT_CONFIG;
+    if (existingRow) {
+      try {
+        existing = { ...DEFAULT_CONFIG, ...JSON.parse(existingRow.value) };
+      } catch {}
+    }
+
+    const merged = { ...existing, ...body };
+
+    db()
+      .prepare(
+        `INSERT INTO config (key, value) VALUES ('app', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+      )
+      .run(JSON.stringify(merged));
+
+    return merged;
+  });
+}

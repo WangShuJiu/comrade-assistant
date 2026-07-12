@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  comrade-assistant:
+    build: .
+    container_name: comrade-assistant
+    ports:
+      - "${PORT:-3090}:3090"
+    environment:
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - QWEN_API_KEY=${QWEN_API_KEY:-}
+      - PORT=3090
+      - HOST=0.0.0.0
+    volumes:
+      - ./data:/app/data
+      - ./server/.env:/app/server/.env:ro
+    restart: unless-stopped
