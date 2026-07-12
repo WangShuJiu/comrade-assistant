@@ -47,6 +47,25 @@ export function useChat(options: UseChatOptions) {
     setMessages(msgs);
   }, []);
 
+  const saveCurrent = useCallback(async () => {
+    if (messages.length <= 1) return;
+    const hasUserMsg = messages.some((m) => m.role === "user");
+    if (!hasUserMsg) return;
+    try {
+      const title = messages
+        .filter((m) => m.role === "user")
+        .map((m) => m.content.slice(0, 30))
+        .join(" | ")
+        .slice(0, 60) || "新对话";
+      await saveHistory({
+        id: options.currentId,
+        title,
+        model: options.deepseekModel,
+        messages,
+      });
+    } catch {}
+  }, [messages, options]);
+
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
     setIsStreaming(false);
@@ -222,5 +241,6 @@ export function useChat(options: UseChatOptions) {
     resetMessages,
     loadMessages,
     retryLast,
+    saveCurrent,
   };
 }

@@ -128,6 +128,11 @@ export default function ChatArea({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    readImageFile(file);
+    e.target.value = "";
+  };
+
+  const readImageFile = (file: File) => {
     if (!file.type.startsWith("image/")) {
       alert("请上传图片文件（JPEG, PNG, GIF, WebP）");
       return;
@@ -142,7 +147,20 @@ export default function ChatArea({
       setUploadedImage({ base64, mimeType: file.type, previewUrl: base64 });
     };
     reader.readAsDataURL(file);
-    e.target.value = "";
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) readImageFile(file);
+        return;
+      }
+    }
   };
 
   const handleGenerate = async (prompt?: string) => {
@@ -478,7 +496,8 @@ export default function ChatArea({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={uploadedImage ? "输入关于图片的问题..." : "输入问题，Enter发送 · /draw 生成图片 · Shift+Enter换行"}
+              onPaste={handlePaste}
+              placeholder={uploadedImage ? "输入关于图片的问题..." : "输入问题，Enter发送 · /draw 生成图片 · Shift+Enter换行 · Ctrl+V粘贴图片"}
               rows={1}
               className="w-full px-4 py-2.5 rounded-xl text-sm resize-none focus:outline-none"
               style={{

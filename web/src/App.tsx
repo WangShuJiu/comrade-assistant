@@ -46,6 +46,7 @@ export default function App() {
     loadMessages,
     retryLast,
     stage,
+    saveCurrent,
   } = useChat({
     deepseekApiKey: config.deepseekApiKey,
     qwenApiKey: config.qwenApiKey,
@@ -94,11 +95,13 @@ export default function App() {
   };
 
   const handleNewChat = () => {
+    saveCurrent().catch(() => {});
     const id = genId();
     setCurrentId(id);
     resetMessages(config.systemPrompt);
     setMobileSidebarOpen(false);
     setView("chat");
+    refreshHistories();
   };
 
   const handleLoadHistory = async (id: string) => {
