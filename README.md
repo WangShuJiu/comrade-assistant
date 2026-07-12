@@ -1,6 +1,10 @@
 # Comrade Assistant
 
 基于 **DeepSeek V4 Pro** 深度思考引擎与 **Qwen 多模态模型** 的高性能 AI 编程助手。商业级全栈架构，支持 Markdown/KaTeX 渲染、视觉级联推理、AI 图像生成、实时费用监控。
+<img width="1819" height="926" alt="图片" src="https://github.com/user-attachments/assets/834c6e01-e594-4b55-aff6-7380bcc01d6c" />
+<img width="1823" height="919" alt="图片" src="https://github.com/user-attachments/assets/fe33ba4f-a9d9-423c-9d00-beea45f2e10b" />
+<img width="1800" height="916" alt="图片" src="https://github.com/user-attachments/assets/9751fa9b-a9cc-463a-94b6-d7c69843423e" />
+
 
 ---
 
