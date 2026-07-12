@@ -5,6 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SERVER_DIR="$SCRIPT_DIR/server"
 WEB_DIR="$SCRIPT_DIR/web"
 DATA_DIR="$SCRIPT_DIR/data"
+PID_FILE="$SCRIPT_DIR/.pid"
+LOG_FILE="$SCRIPT_DIR/server.log"
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -63,12 +65,38 @@ echo -e "${GREEN}║  🚀  Comrade Assistant is starting...        ║${NC}"
 echo -e "${GREEN}║                                              ║${NC}"
 echo -e "${GREEN}║  Frontend:  http://localhost:${PORT}              ║${NC}"
 echo -e "${GREEN}║  API:       http://localhost:${PORT}/api/health  ║${NC}"
-echo -e "${GREEN}║                                              ║${NC}"
-echo -e "${GREEN}║  Press Ctrl+C to stop                        ║${NC}"
+echo -e "${GREEN}║  Logs:      ${LOG_FILE}    ║${NC}"
+echo -e "${GREEN}║  Stop:      bash stop.sh                     ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# 7. Start server
+# 7. Start server — 完全脱离终端，关闭 SSH 不停止
 cd "$SERVER_DIR"
-exec npx tsx src/index.ts
 
+# 使用 setsid 创建新的会话（session），彻底脱离当前终端
+setsid npx tsx src/index.ts > "$LOG_FILE" 2>&1 &
+SS_PID=$!
+
+sleep 2
+
+# 从端口获取真正的 Node.js 进程 PID（setsid 可能 fork）
+ACTUAL_PID=$(lsof -ti :$PORT -sTCP:LISTEN 2>/dev/null)
+if [ -z "$ACTUAL_PID" ]; then
+  ACTUAL_PID=$SS_PID
+fi
+echo $ACTUAL_PID > "$PID_FILE"
+
+if kill -0 $ACTUAL_PID 2>/dev/null; then
+  ok "Server started successfully (PID: $ACTUAL_PID)"
+  echo ""
+  echo "  To view logs:    tail -f $LOG_FILE"
+  echo "  To stop:         bash $SCRIPT_DIR/stop.sh"
+  echo ""
+  echo "  💡 The server runs in a detached session. Closing this terminal"
+  echo "     or SSH connection will NOT affect it."
+  echo ""
+else
+  err "Server failed to start. Check logs: $LOG_FILE"
+  rm -f "$PID_FILE"
+  exit 1
+fi
