@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { createDeepSeekClient, createStreamOptions, withRetry } from "../services/deepseek.js";
 import { callQwenVL, QwenMessage, QwenContentPart } from "../services/qwen.js";
 import { recordVisionCost } from "../services/cost.js";
+import { getTemperatureAndPrompt } from "../services/temperature.js";
 
 interface VisionRequestBody {
   deepseekApiKey: string;
@@ -12,6 +13,7 @@ interface VisionRequestBody {
   mimeType?: string;
   userQuestion?: string;
   messages?: { role: string; content: string }[];
+  useAutoDetect?: boolean;
   temperature?: number;
   maxTokens?: number;
 }
@@ -27,6 +29,7 @@ export function registerVisionRoutes(server: FastifyInstance, dataDir: string) {
       mimeType = "image/jpeg",
       userQuestion = "请分析这张图片",
       messages = [],
+      useAutoDetect = true,
       temperature = 0.3,
       maxTokens = 8192,
     } = req.body as VisionRequestBody;
@@ -115,7 +118,11 @@ ${visionResult.content}
       }
 
       const client = createDeepSeekClient(deepseekApiKey);
-      const streamOpts = createStreamOptions(deepseekModel, deepseekMessages, temperature, maxTokens);
+      const finalTemp = useAutoDetect
+        ? (await getTemperatureAndPrompt(userQuestion)).temperature
+        : temperature;
+
+      const streamOpts = createStreamOptions(deepseekModel, deepseekMessages, finalTemp, maxTokens);
 
       let fullContent = "";
       let thinkingContent = "";

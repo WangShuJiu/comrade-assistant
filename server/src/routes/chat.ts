@@ -1,12 +1,15 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 import { createDeepSeekClient, createStreamOptions, applySlidingWindow, withRetry } from "../services/deepseek.js";
 import { recordChatCost } from "../services/cost.js";
+import { getTemperatureAndPrompt } from "../services/temperature.js";
 
 interface ChatRequestBody {
   apiKey: string;
   model: string;
   messages: { role: string; content: string }[];
+  useAutoDetect?: boolean;
   temperature?: number;
+  systemPrompt?: string;
   maxTokens?: number;
   maxRounds?: number;
 }
@@ -17,7 +20,9 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
       apiKey,
       model,
       messages,
-      temperature = 0.3,
+      useAutoDetect = true,
+      temperature: manualTemp = 0.3,
+      systemPrompt: manualPrompt = "你是一位全能AI助手，请用中文回答。",
       maxTokens = 8192,
       maxRounds = 10,
     } = req.body as ChatRequestBody;
@@ -32,10 +37,32 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
       content: m.content,
     }));
 
-    // Token 滑动窗口截断
-    const truncatedMessages = applySlidingWindow(chatMessages, maxTokens, maxRounds);
+    let finalTemp: number;
+    let finalSysPrompt: string;
 
-    const streamOpts = createStreamOptions(model, truncatedMessages, temperature, maxTokens);
+    if (useAutoDetect) {
+      const lastUserMsg = [...chatMessages].reverse().find((m) => m.role === "user");
+      const userQuery = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+      const result = userQuery
+        ? await getTemperatureAndPrompt(userQuery)
+        : { temperature: 0.3, systemPrompt: "你是一位全能AI助手，请用中文回答。" };
+      finalTemp = result.temperature;
+      finalSysPrompt = result.systemPrompt;
+    } else {
+      finalTemp = manualTemp;
+      finalSysPrompt = manualPrompt;
+    }
+
+    // 注入系统提示词
+    const sysIdx = chatMessages.findIndex((m) => m.role === "system");
+    if (sysIdx >= 0) {
+      chatMessages[sysIdx] = { role: "system", content: finalSysPrompt };
+    } else {
+      chatMessages.unshift({ role: "system", content: finalSysPrompt });
+    }
+
+    const truncatedMessages = applySlidingWindow(chatMessages, maxTokens, maxRounds);
+    const streamOpts = createStreamOptions(model, truncatedMessages, finalTemp, maxTokens);
 
     const raw = reply.raw;
     raw.writeHead(200, {

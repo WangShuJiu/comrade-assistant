@@ -3,11 +3,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PID_FILE="$SCRIPT_DIR/.pid"
 PORT="${PORT:-3090}"
 
+PY_PORT=8765
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
 echo ""
+
+# Stop Python classification service
+PY_PORT_PID=$(lsof -ti :$PY_PORT -sTCP:LISTEN 2>/dev/null)
+if [ -n "$PY_PORT_PID" ]; then
+  echo -e "${GREEN}[STOP]${NC} Stopping Python service (PID: $PY_PORT_PID)..."
+  kill "$PY_PORT_PID" 2>/dev/null
+  sleep 1
+  kill -0 "$PY_PORT_PID" 2>/dev/null && kill -9 "$PY_PORT_PID" 2>/dev/null
+  echo -e "${GREEN}[OK]${NC}   Python service stopped."
+fi
 
 # 方式1: 通过 PID 文件
 if [ -f "$PID_FILE" ]; then

@@ -1,17 +1,17 @@
 import { FastifyInstance, FastifyRequest } from "fastify";
 import { getDb } from "../services/database.js";
-import { getDefaultSystemPrompt } from "../services/cost.js";
 
 interface AppConfig {
   deepseekApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
   qwenModel: string;
+  useAutoDetect: boolean;
   temperature: number;
+  systemPrompt: string;
   maxTokens: number;
   maxRounds: number;
   budget: number;
-  systemPrompt: string;
 }
 
 const DEFAULT_CONFIG: AppConfig = {
@@ -19,11 +19,12 @@ const DEFAULT_CONFIG: AppConfig = {
   qwenApiKey: "",
   deepseekModel: "deepseek-v4-pro",
   qwenModel: "qwen-vl-plus",
+  useAutoDetect: true,
   temperature: 0.3,
+  systemPrompt: "你是一位全能AI助手，请用中文回答。",
   maxTokens: 8192,
   maxRounds: 10,
   budget: 100,
-  systemPrompt: getDefaultSystemPrompt(),
 };
 
 export function registerConfigRoutes(server: FastifyInstance, dataDir: string) {

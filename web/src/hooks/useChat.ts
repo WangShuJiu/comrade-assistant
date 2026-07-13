@@ -7,18 +7,18 @@ interface UseChatOptions {
   qwenApiKey: string;
   deepseekModel: string;
   qwenModel: string;
+  useAutoDetect: boolean;
   temperature: number;
-  maxTokens: number;
   systemPrompt: string;
+  maxTokens: number;
+  maxRounds: number;
   currentId: string;
 }
 
 const COMMAND_PATTERNS = [/^\/draw\s+/i, /^\/draw$/i];
 
 export function useChat(options: UseChatOptions) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "system", content: options.systemPrompt },
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const [streamingThinking, setStreamingThinking] = useState("");
@@ -27,15 +27,14 @@ export function useChat(options: UseChatOptions) {
   const [stage, setStage] = useState<StreamStage>("idle");
   const abortRef = useRef<AbortController | null>(null);
 
-  // Track the last request for retry
   const lastRequestRef = useRef<{
     content: string;
     imageBase64?: string;
     mimeType?: string;
   } | null>(null);
 
-  const resetMessages = useCallback((sysPrompt: string) => {
-    setMessages([{ role: "system", content: sysPrompt }]);
+  const resetMessages = useCallback(() => {
+    setMessages([]);
     setStreamingContent("");
     setStreamingThinking("");
     setVisionDescription(null);
@@ -75,7 +74,6 @@ export function useChat(options: UseChatOptions) {
   const retryLast = useCallback(() => {
     const last = lastRequestRef.current;
     if (last && !isStreaming) {
-      // Remove the failed assistant message if any
       setMessages((prev) => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg?.role === "assistant" && lastMsg.content.startsWith("❌")) {
@@ -155,6 +153,7 @@ export function useChat(options: UseChatOptions) {
               mimeType: mimeType || "image/jpeg",
               userQuestion: content || "请分析这张图片",
               messages: historyMessages,
+              useAutoDetect: options.useAutoDetect,
               temperature: options.temperature,
               maxTokens: options.maxTokens,
             },
@@ -163,21 +162,16 @@ export function useChat(options: UseChatOptions) {
           );
         } else {
           setStage("reasoning");
-          const msgsForAPI = newMessages
-            .filter((m) => m.role !== "system")
-            .slice(-(options.maxRounds || 10) * 2);
-          const apiMessages = [
-            { role: "system", content: options.systemPrompt },
-            ...msgsForAPI,
-          ];
-
           await streamChat(
             {
               apiKey: options.deepseekApiKey,
               model: options.deepseekModel,
-              messages: apiMessages,
+              messages: newMessages.filter((m) => m.role !== "system"),
+              useAutoDetect: options.useAutoDetect,
               temperature: options.temperature,
+              systemPrompt: options.systemPrompt,
               maxTokens: options.maxTokens,
+              maxRounds: options.maxRounds,
             },
             onEvent,
             abort.signal

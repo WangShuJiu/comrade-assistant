@@ -19,11 +19,12 @@ export default function App() {
     qwenApiKey: "",
     deepseekModel: "deepseek-v4-pro",
     qwenModel: "qwen-vl-plus",
+    useAutoDetect: true,
     temperature: 0.3,
+    systemPrompt: "你是一位全能AI助手，请用中文回答。",
     maxTokens: 8192,
     maxRounds: 10,
     budget: 100,
-    systemPrompt: "你是一位精通多种编程语言的AI专家助手。请用中文回答，代码用 Markdown 格式给出，并加上简要解释。",
   });
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
   const [histories, setHistories] = useState<Conversation[]>([]);
@@ -52,9 +53,11 @@ export default function App() {
     qwenApiKey: config.qwenApiKey,
     deepseekModel: config.deepseekModel,
     qwenModel: config.qwenModel,
+    useAutoDetect: config.useAutoDetect,
     temperature: config.temperature,
-    maxTokens: config.maxTokens,
     systemPrompt: config.systemPrompt,
+    maxTokens: config.maxTokens,
+    maxRounds: config.maxRounds,
     currentId,
   });
 
@@ -98,7 +101,7 @@ export default function App() {
     saveCurrent().catch(() => {});
     const id = genId();
     setCurrentId(id);
-    resetMessages(config.systemPrompt);
+    resetMessages();
     setMobileSidebarOpen(false);
     setView("chat");
     refreshHistories();

@@ -424,21 +424,74 @@ function SettingsTab({
       <div>
         <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
           <SlidersHorizontal size={13} />
+          <span className="text-xs font-medium">智能分类</span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+            自动检测场景 & 温度
+          </span>
+          <button
+            onClick={() => setLocal({ ...local, useAutoDetect: !local.useAutoDetect })}
+            className="relative w-10 h-5 rounded-full transition-colors"
+            style={{
+              backgroundColor: local.useAutoDetect
+                ? "var(--accent)"
+                : "var(--border-color)",
+            }}
+          >
+            <div
+              className="absolute top-1 w-3 h-3 rounded-full bg-white transition-transform"
+              style={{
+                left: local.useAutoDetect ? "6px" : "2px",
+                transform: local.useAutoDetect ? "translateX(16px)" : "translateX(0)",
+              }}
+            />
+          </button>
+        </div>
+        <p className="text-[10px] mt-1" style={{ color: "var(--text-muted)" }}>
+          {local.useAutoDetect
+            ? "开启后自动识别场景并调整温度和提示词"
+            : "关闭后使用下方手动设置的参数"}
+        </p>
+      </div>
+
+      {!local.useAutoDetect && (
+        <div>
+          <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
+            <SlidersHorizontal size={13} />
+            <span className="text-xs font-medium">手动参数</span>
+          </div>
+          <label className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+            温度：{local.temperature.toFixed(1)}
+          </label>
+          <input
+            type="range"
+            min="0"
+            max="2"
+            step="0.1"
+            value={local.temperature}
+            onChange={(e) => setLocal({ ...local, temperature: parseFloat(e.target.value) })}
+            className="w-full mt-1 accent-indigo-500"
+          />
+          <label className="text-[10px] block mt-2" style={{ color: "var(--text-muted)" }}>
+            系统提示词
+          </label>
+          <textarea
+            value={local.systemPrompt}
+            onChange={(e) => setLocal({ ...local, systemPrompt: e.target.value })}
+            rows={3}
+            className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none resize-none"
+            style={inputStyle}
+          />
+        </div>
+      )}
+
+      <div>
+        <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
+          <SlidersHorizontal size={13} />
           <span className="text-xs font-medium">生成参数</span>
         </div>
-        <label className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          温度：{local.temperature.toFixed(1)}
-        </label>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={local.temperature}
-          onChange={(e) => setLocal({ ...local, temperature: parseFloat(e.target.value) })}
-          className="w-full mt-1 accent-indigo-500"
-        />
-        <label className="text-[10px] block mt-2" style={{ color: "var(--text-muted)" }}>
+        <label className="text-[10px] block" style={{ color: "var(--text-muted)" }}>
           最大 Token：{local.maxTokens}
         </label>
         <input
@@ -473,19 +526,6 @@ function SettingsTab({
           value={local.budget}
           onChange={(e) => setLocal({ ...local, budget: parseInt(e.target.value) })}
           className="w-full mt-1 accent-indigo-500"
-        />
-      </div>
-
-      <div>
-        <label className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          系统提示词
-        </label>
-        <textarea
-          value={local.systemPrompt}
-          onChange={(e) => setLocal({ ...local, systemPrompt: e.target.value })}
-          rows={3}
-          className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none resize-none"
-          style={inputStyle}
         />
       </div>
 

@@ -21,11 +21,12 @@ export interface AppConfig {
   qwenApiKey: string;
   deepseekModel: string;
   qwenModel: string;
+  useAutoDetect: boolean;
   temperature: number;
+  systemPrompt: string;
   maxTokens: number;
   maxRounds: number;
   budget: number;
-  systemPrompt: string;
 }
 
 export interface ProviderStats {

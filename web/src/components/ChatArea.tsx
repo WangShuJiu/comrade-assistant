@@ -20,6 +20,7 @@ import { generateImage } from "../lib/api";
 import MessageBubble from "./MessageBubble";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
+import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 
 interface ChatAreaProps {
@@ -326,8 +327,8 @@ export default function ChatArea({
                     style={{ color: "var(--text-secondary)" }}
                   >
                     <ReactMarkdown
-                      remarkPlugins={[remarkMath]}
-                      rehypePlugins={[rehypeKatex]}
+            remarkPlugins={[remarkMath, remarkGfm]}
+            rehypePlugins={[rehypeKatex]}
                     >
                       {visionDescription}
                     </ReactMarkdown>

@@ -65,8 +65,11 @@ export function streamChat(
     apiKey: string;
     model: string;
     messages: { role: string; content: string }[];
+    useAutoDetect: boolean;
     temperature: number;
+    systemPrompt: string;
     maxTokens: number;
+    maxRounds: number;
   },
   onEvent: (event: StreamEvent) => void,
   signal?: AbortSignal
@@ -118,6 +121,7 @@ export function streamVision(
     mimeType: string;
     userQuestion: string;
     messages: { role: string; content: string }[];
+    useAutoDetect: boolean;
     temperature: number;
     maxTokens: number;
   },

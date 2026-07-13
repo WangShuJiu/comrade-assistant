@@ -6,7 +6,10 @@ SERVER_DIR="$SCRIPT_DIR/server"
 WEB_DIR="$SCRIPT_DIR/web"
 DATA_DIR="$SCRIPT_DIR/data"
 PID_FILE="$SCRIPT_DIR/.pid"
+PY_PID_FILE="$SCRIPT_DIR/.pid_py"
 LOG_FILE="$SCRIPT_DIR/server.log"
+PY_LOG_FILE="$SCRIPT_DIR/py_service.log"
+PY_PORT=8765
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -38,7 +41,7 @@ ok "Data directory ready"
 
 # 3. Install server dependencies
 info "Installing server dependencies..."
-(cd "$SERVER_DIR" && npm install --silent 2>/dev/null)
+(cd "$SERVER_DIR" && npm install --silent --ignore-scripts 2>/dev/null)
 ok "Server dependencies installed"
 
 # 4. Install web dependencies
@@ -51,7 +54,16 @@ info "Building frontend..."
 (cd "$WEB_DIR" && npx vite build --logLevel warn)
 ok "Frontend built to web/dist/"
 
-# 6. Find available port
+# 6. Start Python classification service
+info "Starting Python classification service..."
+PY_SERVICE_DIR="$SERVER_DIR/py_service"
+(cd "$PY_SERVICE_DIR" && \
+  HF_ENDPOINT=https://hf-mirror.com \
+  setsid python -u main.py > "$PY_LOG_FILE" 2>&1 &)
+echo $! > "$PY_PID_FILE"
+ok "Python service launched (port $PY_PORT, may take ~30s to load model)"
+
+# 7. Find available port
 PORT="${PORT:-3090}"
 while lsof -Pi :$PORT -sTCP:LISTEN -t >/dev/null 2>&1; do
   warn "Port $PORT is in use, trying $((PORT + 1))"
@@ -70,7 +82,7 @@ echo -e "${GREEN}║  Stop:      bash stop.sh                     ║${NC}"
 echo -e "${GREEN}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
-# 7. Start server — 完全脱离终端，关闭 SSH 不停止
+# 8. Start server — 完全脱离终端，关闭 SSH 不停止
 cd "$SERVER_DIR"
 
 # 使用 setsid 创建新的会话（session），彻底脱离当前终端
