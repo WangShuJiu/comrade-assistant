@@ -2,7 +2,7 @@
 
 ## 概述
 
-将原本仅支持 DeepSeek + Qwen 的单一模型架构重构为**可扩展的多服务商抽象层**，新增 OpenAI 和 Anthropic (Claude) 支持。用户可在前端自由切换服务商和模型，所有 API Key 支持 `.env` 环境变量或前端手动输入。
+将原本仅支持 DeepSeek + Qwen 的单一模型架构重构为**可扩展的多服务商抽象层**，新增 OpenAI、Anthropic (Claude)、Google Gemini 支持。用户可在前端自由切换服务商和模型，所有 API Key 支持 `.env` 环境变量或前端手动输入。
 
 ---
 
@@ -32,6 +32,7 @@
 | DeepSeek | V4 Pro, V4 Flash, Chat | OpenAI-compatible | V4 Pro 深度思考 |
 | OpenAI | GPT-4.1, GPT-4o, GPT-4o Mini, o3, o4-mini | OpenAI-compatible | o3/o4-mini |
 | Anthropic | Claude Sonnet 4, Opus 4, 3.5 Sonnet, 3.5 Haiku | Native SDK | Sonnet/Opus 4 extended thinking |
+| Google Gemini | Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash | OpenAI-compatible (Google AI Studio) | — |
 | Qwen (视觉) | VL Plus, VL Max | DashScope REST | 图片描述提取 |
 
 ---
@@ -78,6 +79,7 @@
 DEEPSEEK_API_KEY=sk-xxx     # DeepSeek
 OPENAI_API_KEY=sk-xxx       # OpenAI
 ANTHROPIC_API_KEY=sk-xxx    # Anthropic (Claude)
+GEMINI_API_KEY=sk-xxx       # Google Gemini
 QWEN_API_KEY=sk-xxx         # 通义千问 (视觉)
 PORT=3090
 HOST=0.0.0.0
