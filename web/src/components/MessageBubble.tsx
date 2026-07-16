@@ -4,11 +4,26 @@ import remarkGfm from "remark-gfm";
 import rehypeKatex from "rehype-katex";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { Bot, User, Brain, Copy, Check } from "lucide-react";
-import { useState } from "react";
+import { Bot, User, Brain, Copy, Check, Clipboard } from "lucide-react";
+import { useState, useCallback } from "react";
 import type { ChatMessage } from "../types";
 
 import "katex/dist/katex.min.css";
+
+function copyToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  document.body.removeChild(textarea);
+  return Promise.resolve();
+}
 
 function preprocessMath(text: string): string {
   return text
@@ -22,17 +37,76 @@ interface MessageBubbleProps {
   isLast?: boolean;
 }
 
+function CodeBlock({ language, code }: { language: string; code: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    await copyToClipboard(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [code]);
+
+  return (
+    <div className="relative group">
+      <div
+        className="flex items-center justify-between px-3 py-1.5 rounded-t-lg"
+        style={{
+          backgroundColor: "var(--bg-secondary)",
+          border: "1px solid var(--border-color)",
+          borderBottom: 0,
+        }}
+      >
+        <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
+          {language || "code"}
+        </span>
+        <button
+          onClick={handleCopy}
+          className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {copied ? (
+            <Check size={12} style={{ color: "var(--success)" }} />
+          ) : (
+            <Copy size={12} />
+          )}
+        </button>
+      </div>
+      <SyntaxHighlighter
+        style={oneDark}
+        language={language || "text"}
+        PreTag="div"
+        customStyle={{
+          margin: 0,
+          borderTopLeftRadius: 0,
+          borderTopRightRadius: 0,
+          borderBottomLeftRadius: 8,
+          borderBottomRightRadius: 8,
+          fontSize: "0.8rem",
+          padding: "0.75rem 1rem",
+        }}
+      >
+        {code}
+      </SyntaxHighlighter>
+    </div>
+  );
+}
+
 export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const [thinkingOpen, setThinkingOpen] = useState(isStreaming);
-  const [copied, setCopied] = useState(false);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [copiedAll, setCopiedAll] = useState(false);
 
-  const handleCopy = async (text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopyAll = useCallback(async () => {
+    const parts: string[] = [];
+    if (message.reasoning_content) {
+      parts.push(message.reasoning_content);
+    }
+    parts.push(message.content);
+    await copyToClipboard(parts.join("\n\n"));
+    setCopiedAll(true);
+    setTimeout(() => setCopiedAll(false), 2000);
+  }, [message.reasoning_content, message.content]);
 
   if (message.role === "system") return null;
 
@@ -157,49 +231,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                           );
                         }
 
-                        return (
-                          <div className="relative group">
-                            <div
-                              className="flex items-center justify-between px-3 py-1.5 rounded-t-lg"
-                              style={{
-                                backgroundColor: "var(--bg-secondary)",
-                                border: "1px solid var(--border-color)",
-                                borderBottom: 0,
-                              }}
-                            >
-                              <span className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-                                {match?.[1] || "code"}
-                              </span>
-                              <button
-                                onClick={() => handleCopy(codeStr)}
-                                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-all"
-                                style={{ color: "var(--text-muted)" }}
-                              >
-                                {copied ? (
-                                  <Check size={12} style={{ color: "var(--success)" }} />
-                                ) : (
-                                  <Copy size={12} />
-                                )}
-                              </button>
-                            </div>
-                            <SyntaxHighlighter
-                              style={oneDark}
-                              language={match?.[1] || "text"}
-                              PreTag="div"
-                              customStyle={{
-                                margin: 0,
-                                borderTopLeftRadius: 0,
-                                borderTopRightRadius: 0,
-                                borderBottomLeftRadius: 8,
-                                borderBottomRightRadius: 8,
-                                fontSize: "0.8rem",
-                                padding: "0.75rem 1rem",
-                              }}
-                            >
-                              {codeStr}
-                            </SyntaxHighlighter>
-                          </div>
-                        );
+                        return <CodeBlock language={match?.[1] || ""} code={codeStr} />;
                       },
                     }}
                   >
@@ -207,6 +239,27 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                   </ReactMarkdown>
                 )}
               </div>
+              {!isStreaming && message.content && (
+                <div className="flex justify-end mt-2 pt-2" style={{ borderTop: "1px solid var(--border-color)" }}>
+                  <button
+                    onClick={handleCopyAll}
+                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors hover:opacity-80"
+                    style={{ color: "var(--text-muted)" }}
+                  >
+                    {copiedAll ? (
+                      <>
+                        <Check size={12} style={{ color: "var(--success)" }} />
+                        <span style={{ color: "var(--success)" }}>已复制</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clipboard size={12} />
+                        <span>复制全部</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

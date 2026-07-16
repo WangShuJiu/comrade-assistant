@@ -5,17 +5,16 @@
 <img width="1823" height="919" alt="图片" src="https://github.com/user-attachments/assets/fe33ba4f-a9d9-423c-9d00-beea45f2e10b" />
 <img width="1800" height="916" alt="图片" src="https://github.com/user-attachments/assets/9751fa9b-a9cc-463a-94b6-d7c69843423e" />
 
-
 ---
 
 ## 技术栈
 
-| 层 | 技术 |
-|---|------|
-| 后端 | Node.js 22+ · Fastify 5 · better-sqlite3 · SSE 流式 |
-| 前端 | React 19 · TypeScript · Vite 6 · Tailwind CSS |
+| 层     | 技术                                                            |
+| ----- | ------------------------------------------------------------- |
+| 后端    | Node.js 22+ · Fastify 5 · better-sqlite3 · SSE 流式             |
+| 前端    | React 19 · TypeScript · Vite 6 · Tailwind CSS                 |
 | AI 模型 | DeepSeek V4 Pro / Flash（深度推理）· Qwen-VL Plus（视觉） · Wanx-v1（生图） |
-| 部署 | start.sh 一键脚本 · Docker + docker-compose |
+| 部署    | start.sh 一键脚本 · Docker + docker-compose                       |
 
 ---
 
@@ -163,17 +162,17 @@ comrade-assistant/
 
 ## API 端点
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| `GET` | `/api/health` | 健康检查 + 运行时长 |
-| `GET` | `/api/env-keys` | 检查环境变量密钥状态 |
-| `GET/POST` | `/api/config` | 读写用户配置 |
-| `POST` | `/api/chat/stream` | DeepSeek SSE 流式对话 |
-| `POST` | `/api/vision/stream` | 图片视觉级联分析 |
-| `POST` | `/api/generate/image` | Wanx-v1 图像生成 |
-| `GET/POST/DELETE` | `/api/history` | 对话历史 CRUD |
-| `PATCH` | `/api/history/:id/pin` | 置顶/取消置顶 |
-| `GET` | `/api/usage` | 费用统计 |
+| 方法                | 路径                     | 说明                |
+| ----------------- | ---------------------- | ----------------- |
+| `GET`             | `/api/health`          | 健康检查 + 运行时长       |
+| `GET`             | `/api/env-keys`        | 检查环境变量密钥状态        |
+| `GET/POST`        | `/api/config`          | 读写用户配置            |
+| `POST`            | `/api/chat/stream`     | DeepSeek SSE 流式对话 |
+| `POST`            | `/api/vision/stream`   | 图片视觉级联分析          |
+| `POST`            | `/api/generate/image`  | Wanx-v1 图像生成      |
+| `GET/POST/DELETE` | `/api/history`         | 对话历史 CRUD         |
+| `PATCH`           | `/api/history/:id/pin` | 置顶/取消置顶           |
+| `GET`             | `/api/usage`           | 费用统计              |
 
 ---
 
