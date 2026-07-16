@@ -11,6 +11,7 @@ import { registerHistoryRoutes } from "./routes/history.js";
 import { registerConfigRoutes } from "./routes/config.js";
 import { registerUsageRoutes } from "./routes/usage.js";
 import { closeDb } from "./services/database.js";
+import { PROVIDERS } from "./services/providers/registry.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.join(__dirname, "..", "..");
@@ -41,8 +42,12 @@ server.get("/api/health", async () => ({
 // 从环境变量预填充 API Key（安全性：禁止硬编码）
 server.get("/api/env-keys", async () => ({
   deepseekApiKey: !!process.env.DEEPSEEK_API_KEY,
+  openaiApiKey: !!process.env.OPENAI_API_KEY,
+  anthropicApiKey: !!process.env.ANTHROPIC_API_KEY,
   qwenApiKey: !!process.env.QWEN_API_KEY,
 }));
+
+server.get("/api/providers", async () => PROVIDERS);
 
 try {
   await server.register(fastifyStatic, {
@@ -74,6 +79,8 @@ try {
   await server.listen({ port: PORT, host: HOST });
   console.log(`\n🚀 Comrade Assistant running at http://localhost:${PORT}\n`);
   if (process.env.DEEPSEEK_API_KEY) console.log("   ✅ DEEPSEEK_API_KEY loaded from .env");
+  if (process.env.OPENAI_API_KEY) console.log("   ✅ OPENAI_API_KEY loaded from .env");
+  if (process.env.ANTHROPIC_API_KEY) console.log("   ✅ ANTHROPIC_API_KEY loaded from .env");
   if (process.env.QWEN_API_KEY) console.log("   ✅ QWEN_API_KEY loaded from .env\n");
 } catch (err) {
   server.log.error(err);

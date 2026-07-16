@@ -1,14 +1,18 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { createDeepSeekClient, createStreamOptions, withRetry } from "../services/deepseek.js";
+import { streamChat, getProviderApiKey } from "../services/providers/index.js";
 import { callQwenVL, QwenMessage, QwenContentPart } from "../services/qwen.js";
 import { recordVisionCost } from "../services/cost.js";
 import { getTemperatureAndPrompt } from "../services/temperature.js";
+import { withRetry } from "../services/deepseek.js";
 
 interface VisionRequestBody {
-  deepseekApiKey: string;
+  deepseekApiKey?: string;
   qwenApiKey: string;
-  deepseekModel: string;
+  deepseekModel?: string;
   qwenModel?: string;
+  provider?: string;
+  apiKey?: string;
+  apiKeys?: Record<string, string>;
   imageBase64: string;
   mimeType?: string;
   userQuestion?: string;
@@ -20,11 +24,13 @@ interface VisionRequestBody {
 
 export function registerVisionRoutes(server: FastifyInstance, dataDir: string) {
   server.post("/api/vision/stream", async (req: FastifyRequest, reply: FastifyReply) => {
+    const body = req.body as VisionRequestBody;
+
     const {
-      deepseekApiKey,
       qwenApiKey,
-      deepseekModel = "deepseek-v4-pro",
       qwenModel = "qwen-vl-plus",
+      provider = "deepseek",
+      apiKeys = {},
       imageBase64,
       mimeType = "image/jpeg",
       userQuestion = "请分析这张图片",
@@ -32,9 +38,19 @@ export function registerVisionRoutes(server: FastifyInstance, dataDir: string) {
       useAutoDetect = true,
       temperature = 0.3,
       maxTokens = 8192,
-    } = req.body as VisionRequestBody;
+    } = body;
 
-    if (!deepseekApiKey || !qwenApiKey) {
+    const deepseekModel = body.deepseekModel || "deepseek-v4-pro";
+    const deepseekApiKey = body.deepseekApiKey
+      || body.apiKey
+      || getProviderApiKey("deepseek", apiKeys);
+
+    const reasoningModel = deepseekModel;
+    const reasoningApiKey = body.apiKey
+      || deepseekApiKey
+      || getProviderApiKey(provider, apiKeys);
+
+    if (!reasoningApiKey || !qwenApiKey) {
       return reply.status(400).send({ error: "Both API keys are required" });
     }
 
@@ -55,7 +71,6 @@ export function registerVisionRoutes(server: FastifyInstance, dataDir: string) {
     raw.flushHeaders();
 
     try {
-      // 阶段1: 图像特征提取
       raw.write(
         `data: ${JSON.stringify({
           type: "status",
@@ -89,7 +104,6 @@ export function registerVisionRoutes(server: FastifyInstance, dataDir: string) {
         })}\n\n`
       );
 
-      // 阶段2: 深度思考推理
       raw.write(
         `data: ${JSON.stringify({
           type: "status",
@@ -108,87 +122,64 @@ ${visionResult.content}
 请根据以上图片内容，结合你的知识和推理能力，准确回答用户的问题。`,
       };
 
-      const deepseekMessages = [
+      const reasoningMessages = [
         systemMsg,
         ...messages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
       ];
 
       if (userQuestion && !messages.some((m) => m.content === userQuestion)) {
-        deepseekMessages.push({ role: "user", content: userQuestion });
+        reasoningMessages.push({ role: "user", content: userQuestion });
       }
 
-      const client = createDeepSeekClient(deepseekApiKey);
       const finalTemp = useAutoDetect
         ? (await getTemperatureAndPrompt(userQuestion)).temperature
         : temperature;
 
-      const streamOpts = createStreamOptions(deepseekModel, deepseekMessages, finalTemp, maxTokens);
+      const controller = new AbortController();
+      raw.on("close", () => controller.abort());
 
       let fullContent = "";
       let thinkingContent = "";
-      let actualModel = deepseekModel;
-      let inputTokens = 0;
-      let outputTokens = 0;
 
-      const stream = await withRetry(
-        () => client.chat.completions.create(streamOpts),
-        "DeepSeek 推理"
+      const result = await streamChat(
+        provider,
+        reasoningApiKey,
+        reasoningModel,
+        reasoningMessages,
+        { temperature: finalTemp, maxTokens },
+        (chunk) => {
+          if (raw.destroyed) return;
+          if (chunk.content) fullContent += chunk.content;
+          if (chunk.reasoning) thinkingContent += chunk.reasoning;
+          raw.write(
+            `data: ${JSON.stringify({
+              type: "delta",
+              content: chunk.content,
+              reasoning: chunk.reasoning,
+            })}\n\n`
+          );
+        },
+        controller.signal
       );
-
-      for await (const chunk of stream) {
-        if (raw.destroyed) break;
-
-        if (chunk.model) actualModel = chunk.model;
-
-        const delta = chunk.choices?.[0]?.delta;
-        if (!delta) continue;
-
-        if ((delta as Record<string, unknown>).reasoning_content) {
-          thinkingContent += (delta as Record<string, unknown>).reasoning_content as string;
-        }
-        if (delta.content) {
-          fullContent += delta.content;
-        }
-
-        raw.write(
-          `data: ${JSON.stringify({
-            type: "delta",
-            content: delta.content || "",
-            reasoning: (delta as Record<string, unknown>).reasoning_content || "",
-          })}\n\n`
-        );
-      }
-
-      try {
-        const finalChunk = await stream.finalChatCompletion();
-        if (finalChunk.usage) {
-          inputTokens = finalChunk.usage.prompt_tokens || 0;
-          outputTokens = finalChunk.usage.completion_tokens || 0;
-        }
-      } catch {
-        inputTokens = Math.ceil(
-          deepseekMessages.reduce((acc, m) => acc + m.content.length, 0) / 3
-        );
-        outputTokens = Math.ceil(fullContent.length / 3);
-      }
 
       const costSummary = recordVisionCost(
         dataDir,
         qwenModel,
-        actualModel,
+        provider,
+        result.model,
         visionResult.inputTokens,
         visionResult.outputTokens,
-        inputTokens,
-        outputTokens
+        result.inputTokens,
+        result.outputTokens
       );
 
       raw.write(
         `data: ${JSON.stringify({
           type: "done",
-          model: actualModel,
+          model: result.model,
           thinking: thinkingContent,
-          inputTokens,
-          outputTokens,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
           cost: costSummary.totalCost,
         })}\n\n`
       );

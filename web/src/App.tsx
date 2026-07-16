@@ -15,9 +15,16 @@ function genId() {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [config, setConfig] = useState<AppConfig>({
+    provider: "deepseek",
+    apiKeys: {},
+    models: {},
     deepseekApiKey: "",
+    openaiApiKey: "",
+    anthropicApiKey: "",
     qwenApiKey: "",
     deepseekModel: "deepseek-v4-pro",
+    openaiModel: "gpt-4.1",
+    anthropicModel: "claude-sonnet-4-20250514",
     qwenModel: "qwen-vl-plus",
     useAutoDetect: true,
     temperature: 0.3,
@@ -49,10 +56,13 @@ export default function App() {
     stage,
     saveCurrent,
   } = useChat({
+    provider: config.provider,
+    apiKeys: config.apiKeys,
     deepseekApiKey: config.deepseekApiKey,
     qwenApiKey: config.qwenApiKey,
     deepseekModel: config.deepseekModel,
     qwenModel: config.qwenModel,
+    models: config.models,
     useAutoDetect: config.useAutoDetect,
     temperature: config.temperature,
     systemPrompt: config.systemPrompt,
@@ -111,7 +121,7 @@ export default function App() {
     try {
       const conv = await fetchHistory(id);
       setCurrentId(conv.id);
-      loadMessages(conv.messages);
+      loadMessages(conv.messages || []);
       setMobileSidebarOpen(false);
       setView("chat");
     } catch {}

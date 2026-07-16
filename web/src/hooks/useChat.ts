@@ -3,10 +3,13 @@ import type { ChatMessage, StreamEvent, StreamStage } from "../types";
 import { streamChat, streamVision, saveHistory } from "../lib/api";
 
 interface UseChatOptions {
+  provider: string;
+  apiKeys: Record<string, string>;
   deepseekApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
   qwenModel: string;
+  models: Record<string, string>;
   useAutoDetect: boolean;
   temperature: number;
   systemPrompt: string;
@@ -14,8 +17,6 @@ interface UseChatOptions {
   maxRounds: number;
   currentId: string;
 }
-
-const COMMAND_PATTERNS = [/^\/draw\s+/i, /^\/draw$/i];
 
 export function useChat(options: UseChatOptions) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -32,6 +33,30 @@ export function useChat(options: UseChatOptions) {
     imageBase64?: string;
     mimeType?: string;
   } | null>(null);
+
+  const getProviderApiKey = useCallback(
+    (providerId: string): string => {
+      const keyMap: Record<string, string> = {
+        deepseek: options.deepseekApiKey,
+        openai: options.apiKeys.openai || "",
+        anthropic: options.apiKeys.anthropic || "",
+      };
+      return options.apiKeys[providerId] || keyMap[providerId] || "";
+    },
+    [options.apiKeys, options.deepseekApiKey]
+  );
+
+  const getProviderModel = useCallback(
+    (providerId: string): string => {
+      const modelMap: Record<string, string> = {
+        deepseek: options.deepseekModel,
+        openai: options.models.openai || "gpt-4.1",
+        anthropic: options.models.anthropic || "claude-sonnet-4-20250514",
+      };
+      return options.models[providerId] || modelMap[providerId] || "";
+    },
+    [options.models, options.deepseekModel]
+  );
 
   const resetMessages = useCallback(() => {
     setMessages([]);
@@ -59,11 +84,11 @@ export function useChat(options: UseChatOptions) {
       await saveHistory({
         id: options.currentId,
         title,
-        model: options.deepseekModel,
+        model: getProviderModel(options.provider),
         messages,
       });
     } catch {}
-  }, [messages, options]);
+  }, [messages, options, getProviderModel]);
 
   const cancelStream = useCallback(() => {
     abortRef.current?.abort();
@@ -149,6 +174,9 @@ export function useChat(options: UseChatOptions) {
               qwenApiKey: options.qwenApiKey,
               deepseekModel: options.deepseekModel,
               qwenModel: options.qwenModel,
+              provider: options.provider,
+              apiKey: getProviderApiKey(options.provider),
+              apiKeys: options.apiKeys,
               imageBase64,
               mimeType: mimeType || "image/jpeg",
               userQuestion: content || "请分析这张图片",
@@ -164,9 +192,11 @@ export function useChat(options: UseChatOptions) {
           setStage("reasoning");
           await streamChat(
             {
-              apiKey: options.deepseekApiKey,
-              model: options.deepseekModel,
+              provider: options.provider,
+              apiKey: getProviderApiKey(options.provider),
+              model: getProviderModel(options.provider),
               messages: newMessages.filter((m) => m.role !== "system"),
+              apiKeys: options.apiKeys,
               useAutoDetect: options.useAutoDetect,
               temperature: options.temperature,
               systemPrompt: options.systemPrompt,
@@ -199,7 +229,7 @@ export function useChat(options: UseChatOptions) {
             await saveHistory({
               id: options.currentId,
               title,
-              model: options.deepseekModel,
+              model: getProviderModel(options.provider),
               messages: finalMessages,
             });
           } catch {}
@@ -219,7 +249,7 @@ export function useChat(options: UseChatOptions) {
         abortRef.current = null;
       }
     },
-    [messages, options]
+    [messages, options, getProviderApiKey, getProviderModel]
   );
 
   return {

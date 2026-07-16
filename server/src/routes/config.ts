@@ -2,9 +2,16 @@ import { FastifyInstance, FastifyRequest } from "fastify";
 import { getDb } from "../services/database.js";
 
 interface AppConfig {
+  provider: string;
+  apiKeys: Record<string, string>;
+  models: Record<string, string>;
   deepseekApiKey: string;
+  openaiApiKey: string;
+  anthropicApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
+  openaiModel: string;
+  anthropicModel: string;
   qwenModel: string;
   useAutoDetect: boolean;
   temperature: number;
@@ -15,9 +22,16 @@ interface AppConfig {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
+  provider: "deepseek",
+  apiKeys: {},
+  models: {},
   deepseekApiKey: "",
+  openaiApiKey: "",
+  anthropicApiKey: "",
   qwenApiKey: "",
   deepseekModel: "deepseek-v4-pro",
+  openaiModel: "gpt-4.1",
+  anthropicModel: "claude-sonnet-4-20250514",
   qwenModel: "qwen-vl-plus",
   useAutoDetect: true,
   temperature: 0.3,

@@ -10,7 +10,7 @@ import {
   Zap,
   TrendingUp,
 } from "lucide-react";
-import type { CostSummary } from "../types";
+import type { CostSummary, ProviderStats } from "../types";
 
 interface DashboardProps {
   costSummary: CostSummary;
@@ -22,22 +22,45 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
   const remaining = Math.max(0, budget - costSummary.totalCost);
   const usedPercent = Math.min(100, (costSummary.totalCost / budget) * 100);
 
-  // 计算近期趋势（最近7天）
   const now = Date.now();
   const recent7d = costSummary.recentEntries?.filter(
     (e) => now - (e.timestamp || 0) < 7 * 24 * 3600 * 1000
   ) || [];
 
-  const totalDeepSeek = recent7d
-    .filter((e) => e.provider === "deepseek")
-    .reduce((s, e) => s + e.cost, 0);
-  const totalQwen = recent7d
-    .filter((e) => e.provider === "qwen")
-    .reduce((s, e) => s + e.cost, 0);
+  const providers: Record<string, ProviderStats> = costSummary.providers || {};
+  if (!providers || Object.keys(providers).length === 0) {
+    // backward compat
+    if (costSummary.deepseek) providers.deepseek = costSummary.deepseek;
+    if (costSummary.qwen) providers.qwen = costSummary.qwen;
+  }
+  const providerIds = Object.keys(providers);
 
-  const barMax = Math.max(totalDeepSeek, totalQwen, 0.001);
-  const dsBarWidth = Math.min(100, (totalDeepSeek / barMax) * 100);
-  const qwBarWidth = Math.min(100, (totalQwen / barMax) * 100);
+  const provider7d: Record<string, number> = {};
+  for (const pid of providerIds) {
+    provider7d[pid] = recent7d.filter((e) => e.provider === pid).reduce((s, e) => s + e.cost, 0);
+  }
+
+  const barMax = Math.max(...Object.values(provider7d), 0.001);
+
+  const barColors: Record<string, string> = {
+    deepseek: "bg-indigo-500",
+    openai: "bg-emerald-500",
+    anthropic: "bg-orange-500",
+    qwen: "bg-cyan-500",
+  };
+
+  const providerColors: Record<string, string> = {
+    deepseek: "text-indigo-400",
+    openai: "text-emerald-400",
+    anthropic: "text-orange-400",
+    qwen: "text-cyan-400",
+  };
+
+  const providerIcons: Record<string, React.ReactNode> = {
+    openai: <Zap size={16} className="text-emerald-400" />,
+    anthropic: <Database size={16} className="text-orange-400" />,
+    qwen: <Eye size={16} className="text-cyan-400" />,
+  };
 
   return (
     <div className="flex-1 overflow-y-auto p-6 animate-fade-in"
@@ -109,34 +132,31 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 mb-4">
-        <StatCard
-          icon={<Database size={16} className="text-indigo-400" />}
-          title="DeepSeek 调用"
-          value={costSummary.deepseek.calls}
-          subtitle={`${(costSummary.deepseek.inputTokens / 1000).toFixed(1)}K / ${(costSummary.deepseek.outputTokens / 1000).toFixed(1)}K tokens`}
-          cost={costSummary.deepseek.cost}
-        />
-        <StatCard
-          icon={<Eye size={16} className="text-emerald-400" />}
-          title="Qwen 调用"
-          value={costSummary.qwen.calls}
-          subtitle={`${(costSummary.qwen.inputTokens / 1000).toFixed(1)}K tokens · ${costSummary.qwen.imagesGenerated || 0} 图片`}
-          cost={costSummary.qwen.cost}
-        />
-        <StatCard
-          icon={<Zap size={16} className="text-amber-400" />}
-          title="7日内 DeepSeek"
-          value={`$${totalDeepSeek.toFixed(3)}`}
-          subtitle={`${recent7d.filter(e => e.provider === "deepseek").length} 次`}
-          cost={0}
-        />
-        <StatCard
-          icon={<ChartColumn size={16} className="text-purple-400" />}
-          title="7日内 Qwen"
-          value={`$${totalQwen.toFixed(3)}`}
-          subtitle={`${recent7d.filter(e => e.provider === "qwen").length} 次`}
-          cost={0}
-        />
+        {providerIds.map((pid) => {
+          const stats = providers[pid];
+          const icon = providerIcons[pid] || <Database size={16} className="text-indigo-400" />;
+          const name = pid.charAt(0).toUpperCase() + pid.slice(1);
+          return (
+            <StatCard
+              key={pid}
+              icon={icon}
+              title={`${name} 调用`}
+              value={stats.calls}
+              subtitle={`${(stats.inputTokens / 1000).toFixed(1)}K / ${(stats.outputTokens / 1000).toFixed(1)}K tokens${stats.imagesGenerated ? ` · ${stats.imagesGenerated} 图片` : ""}`}
+              cost={stats.cost}
+            />
+          );
+        })}
+        {providerIds.map((pid) => (
+          <StatCard
+            key={`7d-${pid}`}
+            icon={<ChartColumn size={16} className="text-purple-400" />}
+            title={`7日内 ${pid.charAt(0).toUpperCase() + pid.slice(1)}`}
+            value={`$${provider7d[pid].toFixed(3)}`}
+            subtitle={`${recent7d.filter(e => e.provider === pid).length} 次`}
+            cost={0}
+          />
+        ))}
       </div>
 
       {/* Comparison chart */}
@@ -146,32 +166,25 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
           7日费用对比
         </h3>
         <div className="space-y-3">
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
-                <Database size={11} className="text-indigo-400" /> DeepSeek
-              </span>
-              <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
-                ${totalDeepSeek.toFixed(4)}
-              </span>
+          {providerIds.map((pid) => (
+            <div key={pid}>
+              <div className="flex justify-between text-xs mb-1">
+                <span className="flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
+                  <div className={`w-2 h-2 rounded-full ${barColors[pid] || 'bg-gray-400'}`} />
+                  {pid.charAt(0).toUpperCase() + pid.slice(1)}
+                </span>
+                <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
+                  ${provider7d[pid].toFixed(4)}
+                </span>
+              </div>
+              <div className="w-full h-2 rounded-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                <div
+                  className={`h-full rounded-full ${barColors[pid] || 'bg-gray-400'} transition-all`}
+                  style={{ width: `${Math.min(100, (provider7d[pid] / barMax) * 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="w-full h-2 rounded-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${dsBarWidth}%` }} />
-            </div>
-          </div>
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="flex items-center gap-1" style={{ color: 'var(--text-secondary)' }}>
-                <Eye size={11} className="text-emerald-400" /> Qwen
-              </span>
-              <span className="font-mono" style={{ color: 'var(--text-muted)' }}>
-                ${totalQwen.toFixed(4)}
-              </span>
-            </div>
-            <div className="w-full h-2 rounded-full" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-              <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${qwBarWidth}%` }} />
-            </div>
-          </div>
+          ))}
         </div>
       </div>
 
@@ -189,11 +202,9 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
               style={{ backgroundColor: i % 2 === 0 ? 'var(--card-bg)' : 'transparent' }}
             >
               <div className="flex items-center gap-2">
-                <div className={`w-1.5 h-1.5 rounded-full ${
-                  entry.provider === "deepseek" ? "bg-indigo-400" : "bg-emerald-400"
-                }`} />
+                <div className={`w-1.5 h-1.5 rounded-full ${barColors[entry.provider] || 'bg-gray-400'}`} />
                 <span style={{ color: 'var(--text-secondary)' }}>
-                  {entry.provider === "deepseek" ? "DeepSeek" : "Qwen"} - {entry.action}
+                  {entry.provider.charAt(0).toUpperCase() + entry.provider.slice(1)} - {entry.action}
                 </span>
               </div>
               <div className="flex items-center gap-3">

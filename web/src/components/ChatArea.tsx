@@ -228,7 +228,7 @@ export default function ChatArea({
             Comrade <span className="gradient-text">Assistant</span>
           </h1>
           <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>
-            {config.deepseekModel}
+            {config.models[config.provider] || config.deepseekModel}
             {config.qwenApiKey ? " + Vision" : ""}
             {isStreaming && <StreamingIndicator stage={stage} />}
           </p>
@@ -541,7 +541,7 @@ export default function ChatArea({
           )}
         </div>
         <p className="text-[10px] mt-1.5 text-center" style={{ color: 'var(--text-muted)' }}>
-          Comrade Assistant · DeepSeek V4 Pro + Qwen Vision · AI 可能出错，请验证重要信息
+          Comrade Assistant · 多服务商 AI · 可能出错，请验证重要信息
         </p>
       </div>
     </div>

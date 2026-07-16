@@ -1,48 +1,38 @@
-# Comrade Assistant - 智能温度/场景分类功能总结
+# Comrade Assistant - 多服务商 AI 支持
 
 ## 概述
 
-实现了基于用户输入文本的**场景自动分类与参数动态调整**功能。系统根据用户提问内容，自动判断所属场景（12 类），并匹配对应的 **temperature（温度）** 和 **system prompt（系统提示词）**，从而优化 DeepSeek API 的回答风格。
-
-同时保留手动模式，用户可通过前端开关自由切换自动/手动控制。
+将原本仅支持 DeepSeek + Qwen 的单一模型架构重构为**可扩展的多服务商抽象层**，新增 OpenAI 和 Anthropic (Claude) 支持。用户可在前端自由切换服务商和模型，所有 API Key 支持 `.env` 环境变量或前端手动输入。
 
 ---
 
 ## 架构
 
 ```
-用户输入 → Node.js (Fastify)
+用户输入 → Fastify Server
               │
-              ├─ useAutoDetect = true (默认)
+              ├─ Provider Router (provider 参数)
               │    │
-              │    ├─ Python 服务 (127.0.0.1:8765)
-              │    │   └─ Erlangshen-Roberta-330M-NLI 零样本分类
-              │    │       ↓
-              │    ├─ 置信度 ≥ 0.3 → 采用模型结果
-              │    └─ 置信度 < 0.3 → 关键词规则纠正
+              │    ├─ OpenAI-compatible (DeepSeek / OpenAI / ...)
+              │    │   └─ OpenAI SDK (streaming + retry)
+              │    │
+              │    └─ Anthropic (原生)
+              │        └─ @anthropic-ai/sdk (streaming adapter)
               │
-              └─ useAutoDetect = false
-                   └─ 使用用户手动设置的 temperature + systemPrompt
+              └─ Provider Registry
+                   └─ 模型列表 / 价格 / 特性 / 环境变量映射
 ```
 
 ---
 
-## 12 种场景分类
+## 支持的服务商
 
-| #   | 场景   | 温度   | 提示词基调             |
-| --- | ---- | ---- | ----------------- |
-| 1   | 代码编程 | 0.05 | 资深软件工程师，精确、代码正确可用 |
-| 2   | 事实知识 | 0.1  | 百科全书助手，准确客观、不虚构   |
-| 3   | 翻译   | 0.1  | 专业翻译，忠实准确、直接输出    |
-| 4   | 学术科研 | 0.15 | 严谨学术研究者，逻辑严密、有据可查 |
-| 5   | 健康医疗 | 0.2  | 负责任健康顾问，循证医学、谨慎建议 |
-| 6   | 学习教育 | 0.3  | 耐心导师，通俗易懂、循序渐进    |
-| 7   | 分析推理 | 0.4  | 策略分析师，多角度拆解、深度洞察  |
-| 8   | 办公效率 | 0.5  | 办公助手，格式规范、直接可用    |
-| 9   | 生活饮食 | 0.6  | 热爱生活的朋友，推荐具体、接地气  |
-| 10  | 日常闲聊 | 0.7  | 友善聊天伙伴，自然流畅       |
-| 11  | 营销文案 | 0.9  | 资深文案，抓眼球、有感染力     |
-| 12  | 艺术创意 | 1.2  | 富有灵气的创作者，文笔优美     |
+| 服务商 | 模型 | 类型 | 推理能力 |
+|--------|------|------|----------|
+| DeepSeek | V4 Pro, V4 Flash, Chat | OpenAI-compatible | V4 Pro 深度思考 |
+| OpenAI | GPT-4.1, GPT-4o, GPT-4o Mini, o3, o4-mini | OpenAI-compatible | o3/o4-mini |
+| Anthropic | Claude Sonnet 4, Opus 4, 3.5 Sonnet, 3.5 Haiku | Native SDK | Sonnet/Opus 4 extended thinking |
+| Qwen (视觉) | VL Plus, VL Max | DashScope REST | 图片描述提取 |
 
 ---
 
@@ -50,63 +40,47 @@
 
 ### 新增文件
 
-| 文件                                   | 说明                                                                                 |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| `server/src/services/temperature.ts` | 核心分类逻辑：12 类场景定义、关键词匹配、Python 服务调用、`getTemperature()` / `getTemperatureAndPrompt()` |
-| `server/py_service/main.py`          | Python FastAPI 微服务，加载 Erlangshen-Roberta-330M-NLI 做零样本分类                           |
-| `server/py_service/requirements.txt` | Python 依赖：transformers, torch, fastapi, uvicorn                                    |
+| 文件 | 说明 |
+|------|------|
+| `server/src/services/providers/types.ts` | 核心类型定义：`ProviderId`, `ProviderInfo`, `ModelInfo`, `ChatMessage`, `ChatOptions`, `StreamChunkCallback` |
+| `server/src/services/providers/registry.ts` | 服务商注册表：DeepSeek/OpenAI/Anthropic 的完整元信息（模型、价格、环境变量名），以及 `getProvider()` / `getModelPricing()` / `isThinkingModel()` 工具函数 |
+| `server/src/services/providers/openai-compatible.ts` | OpenAI SDK 通用流式客户端：支持任意 OpenAI-compatible 服务商，含 Token 滑动窗口截断、指数退避重试 |
+| `server/src/services/providers/anthropic.ts` | Anthropic 原生 SDK 流式适配器：将 Anthropic 的 `message_start` / `content_block_delta` / `message_delta` 事件映射为统一 `StreamChunk` 格式，支持 extended thinking |
+| `server/src/services/providers/index.ts` | 统一入口：`streamChat()` 根据 provider 类型分派到 OpenAI-compatible 或 Anthropic；`getProviderApiKey()` 优先读环境变量 |
 
 ### 修改文件
 
-| 文件                               | 变更                                                                                                    |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `server/src/routes/chat.ts`      | 接收 `useAutoDetect` / `temperature` / `systemPrompt` 字段；自动模式调用 `getTemperatureAndPrompt()` 注入匹配的提示词和温度 |
-| `server/src/routes/vision.ts`    | 同上，视觉推理阶段使用自动检测温度                                                                                     |
-| `server/src/routes/config.ts`    | 新增 `useAutoDetect` / `temperature` / `systemPrompt` 持久化字段                                             |
-| `web/src/types/index.ts`         | `AppConfig` 新增 `useAutoDetect` / `temperature` / `systemPrompt`                                       |
-| `web/src/App.tsx`                | 状态中恢复温度/提示词字段                                                                                         |
-| `web/src/hooks/useChat.ts`       | 向前后端传递 `useAutoDetect` / `temperature` / `systemPrompt`                                               |
-| `web/src/lib/api.ts`             | `streamChat()` / `streamVision()` 新增上述字段                                                              |
-| `web/src/components/Sidebar.tsx` | 新增「智能分类」切换开关；关闭时显示温度滑杆和提示词输入框                                                                         |
-| `start.sh`                       | 新增步骤 6：启动 Python 分类服务（端口 8765）                                                                        |
-| `stop.sh`                        | 新增 Python 服务停止逻辑                                                                                      |
-| `server/package.json`            | 依赖：`@xenova/transformers`（已弃用，保留以备后续）、`@huggingface/transformers`（已弃用）                                |
-
-### 技术演进历程
-
-| 阶段  | 方案                                             | 结果                        |
-| --- | ---------------------------------------------- | ------------------------- |
-| 1   | `@xenova/transformers` + DistilBERT            | 英文模型，中文分类接近随机             |
-| 2   | `@xenova/transformers` + BART-Large-MNLI       | 英文模型，中文改善有限               |
-| 3   | `@huggingface/transformers` (v4) + mDeBERTa-v3 | ONNX 推理中文输出为噪声            |
-| 4   | `@xenova/transformers` (v2) + mDeBERTa-v3      | 同上，ONNX 不可靠               |
-| 5   | **纯关键词匹配**                                     | ✅ 准确，但依赖关键词覆盖度            |
-| 6   | **Python 微服务 + Erlangshen-Roberta-330M-NLI**   | ✅ 当前方案，高置信度采用模型，低置信度关键词兜底 |
-
-### 最终结论
-
-- **ONNX 运行时在 Node.js 中对中文零样本分类不可靠**（经历了 4 轮模型 + 2 个库的验证）
-- **Erlangshen-Roberta-330M-NLI** 是专为中文 NLI 训练的 330M 参数模型，在 Python 原生环境推理效果良好
-- **混合策略**：模型高置信度时采用模型，低置信度时关键词规则兜底，平衡准确性和鲁棒性
+| 文件 | 变更 |
+|------|------|
+| `server/src/routes/chat.ts` | 新增 `provider` 参数，使用 `streamChat()` 工厂方法；支持通过 `apiKeys` map 传递多服务商密钥 |
+| `server/src/routes/vision.ts` | 推理阶段使用 `streamChat()` 替代硬编码 DeepSeek 调用；支持推理服务商切换 |
+| `server/src/routes/config.ts` | `AppConfig` 扩展：`provider` / `apiKeys` / `models` / `openaiApiKey` / `anthropicApiKey` / `openaiModel` / `anthropicModel` |
+| `server/src/services/cost.ts` | `CostSummary` 从硬编码 `deepseek`/`qwen` 改为动态 `providers: Record<string, ProviderStats>`（向后兼容旧格式）；通过 registry 查价格 |
+| `server/src/services/deepseek.ts` | 保留向后兼容导出（仍被 `generate.ts` 的 `withRetry` 使用），修复 TS 类型转换 |
+| `server/src/index.ts` | 新增 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` 环境变量检测与启动日志；新增 `/api/providers` 端点返回服务商注册表 |
+| `server/.env.example` | 文档化 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
+| `server/package.json` | 新增依赖 `@anthropic-ai/sdk` |
+| `web/src/types/index.ts` | 新增 `ProviderInfo` / `ModelInfo` 类型；`AppConfig` 扩展 provider/keys/models 字段；`Conversation` 增加 `messages`；`CostSummary` 改为动态 |
+| `web/src/lib/api.ts` | 新增 `fetchProviders()`；`streamChat()` / `streamVision()` 传递 `provider` 和 `apiKeys` |
+| `web/src/hooks/useChat.ts` | 新增 `provider`/`apiKeys`/`models` 参数，`getProviderApiKey()` 和 `getProviderModel()` 解析当前服务商配置 |
+| `web/src/components/Sidebar.tsx` | 设置页重构：服务商下拉选择、各服务商 API Key 输入、当前服务商模型选择器；从 `/api/providers` 动态加载可用模型 |
+| `web/src/components/ChatArea.tsx` | 顶部显示当前服务商的模型名称 |
+| `web/src/components/Dashboard.tsx` | 动态统计卡片和 7 日对比图，根据实际使用的服务商自动生成（不再硬编码 DeepSeek/Qwen） |
+| `web/src/components/CostPanel.tsx` | 动态费用卡片，按服务商自动分组展示 |
+| `web/src/hooks/useTheme.tsx` | 导出 `Theme` 类型 |
 
 ---
 
-## 运行方式
+## 环境变量
 
 ```bash
-# 完整启动（前端构建 + Python 服务 + Node.js 服务）
-./start.sh
-
-# 停止
-./stop.sh
-
-# 单独启动 Python 服务（调试用）
-cd server/py_service
-HF_ENDPOINT=https://hf-mirror.com python main.py
-
-# 查看日志
-tail -f server.log        # Node.js 日志
-tail -f py_service.log    # Python 服务日志
+# .env
+DEEPSEEK_API_KEY=sk-xxx     # DeepSeek
+OPENAI_API_KEY=sk-xxx       # OpenAI
+ANTHROPIC_API_KEY=sk-xxx    # Anthropic (Claude)
+QWEN_API_KEY=sk-xxx         # 通义千问 (视觉)
+PORT=3090
+HOST=0.0.0.0
 ```
 
 ---
@@ -114,7 +88,20 @@ tail -f py_service.log    # Python 服务日志
 ## 前端操作
 
 1. 打开侧边栏 → 设置标签页
-2. 「智能分类」开关：
-   - **开启**（蓝色）：自动检测场景，温度和提示词自动匹配
-   - **关闭**（灰色）：露出温度滑杆（0.0 ~ 2.0）和系统提示词输入框，手动设定
-3. 点「保存设置」持久化
+2. 「服务商选择」下拉切换 DeepSeek / OpenAI / Anthropic
+3. 对应输入各服务商的 API Key（`.env` 中配置的优先）
+4. 当前服务商的模型下拉选择具体模型
+5. Qwen 视觉模型和密钥独立配置（用于图片分析）
+6. 点「保存设置」持久化
+
+---
+
+## 运行方式
+
+```bash
+# 完整启动
+./start.sh
+
+# 停止
+./stop.sh
+```

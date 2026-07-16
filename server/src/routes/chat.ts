@@ -1,12 +1,14 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { createDeepSeekClient, createStreamOptions, applySlidingWindow, withRetry } from "../services/deepseek.js";
+import { streamChat, applySlidingWindow, getProviderApiKey } from "../services/providers/index.js";
 import { recordChatCost } from "../services/cost.js";
 import { getTemperatureAndPrompt } from "../services/temperature.js";
 
 interface ChatRequestBody {
-  apiKey: string;
-  model: string;
+  provider?: string;
+  apiKey?: string;
+  model?: string;
   messages: { role: string; content: string }[];
+  apiKeys?: Record<string, string>;
   useAutoDetect?: boolean;
   temperature?: number;
   systemPrompt?: string;
@@ -17,9 +19,11 @@ interface ChatRequestBody {
 export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
   server.post("/api/chat/stream", async (req: FastifyRequest, reply: FastifyReply) => {
     const {
+      provider = "deepseek",
       apiKey,
-      model,
+      model = "deepseek-v4-pro",
       messages,
+      apiKeys = {},
       useAutoDetect = true,
       temperature: manualTemp = 0.3,
       systemPrompt: manualPrompt = "你是一位全能AI助手，请用中文回答。",
@@ -27,11 +31,12 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
       maxRounds = 10,
     } = req.body as ChatRequestBody;
 
-    if (!apiKey || apiKey.trim() === "") {
-      return reply.status(400).send({ error: "API Key is required" });
+    const effectiveApiKey = apiKey || getProviderApiKey(provider, apiKeys);
+
+    if (!effectiveApiKey || effectiveApiKey.trim() === "") {
+      return reply.status(400).send({ error: `API Key is required for provider: ${provider}` });
     }
 
-    const client = createDeepSeekClient(apiKey);
     const chatMessages = messages.map((m) => ({
       role: m.role as "system" | "user" | "assistant",
       content: m.content,
@@ -53,7 +58,6 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
       finalSysPrompt = manualPrompt;
     }
 
-    // 注入系统提示词
     const sysIdx = chatMessages.findIndex((m) => m.role === "system");
     if (sysIdx >= 0) {
       chatMessages[sysIdx] = { role: "system", content: finalSysPrompt };
@@ -62,7 +66,6 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
     }
 
     const truncatedMessages = applySlidingWindow(chatMessages, maxTokens, maxRounds);
-    const streamOpts = createStreamOptions(model, truncatedMessages, finalTemp, maxTokens);
 
     const raw = reply.raw;
     raw.writeHead(200, {
@@ -75,62 +78,47 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
 
     let fullContent = "";
     let thinkingContent = "";
-    let actualModel = model;
-    let inputTokens = 0;
-    let outputTokens = 0;
 
     try {
-      const stream = await withRetry(
-        () => client.chat.completions.create(streamOpts),
-        "DeepSeek Chat"
+      const controller = new AbortController();
+      raw.on("close", () => controller.abort());
+
+      const result = await streamChat(
+        provider,
+        effectiveApiKey,
+        model,
+        truncatedMessages,
+        { temperature: finalTemp, maxTokens },
+        (chunk) => {
+          if (raw.destroyed) return;
+          if (chunk.content) fullContent += chunk.content;
+          if (chunk.reasoning) thinkingContent += chunk.reasoning;
+          raw.write(
+            `data: ${JSON.stringify({
+              type: "delta",
+              content: chunk.content,
+              reasoning: chunk.reasoning,
+            })}\n\n`
+          );
+        },
+        controller.signal
       );
 
-      for await (const chunk of stream) {
-        if (raw.destroyed) break;
-
-        if (chunk.model) actualModel = chunk.model;
-
-        const delta = chunk.choices?.[0]?.delta;
-        if (!delta) continue;
-
-        if ((delta as Record<string, unknown>).reasoning_content) {
-          thinkingContent += (delta as Record<string, unknown>).reasoning_content as string;
-        }
-        if (delta.content) {
-          fullContent += delta.content;
-        }
-
-        raw.write(
-          `data: ${JSON.stringify({
-            type: "delta",
-            content: delta.content || "",
-            reasoning: (delta as Record<string, unknown>).reasoning_content || "",
-          })}\n\n`
-        );
-      }
-
-      try {
-        const finalChunk = await stream.finalChatCompletion();
-        if (finalChunk.usage) {
-          inputTokens = finalChunk.usage.prompt_tokens || 0;
-          outputTokens = finalChunk.usage.completion_tokens || 0;
-        }
-      } catch {
-        inputTokens = Math.ceil(
-          truncatedMessages.reduce((acc, m) => acc + (typeof m.content === "string" ? m.content.length : 0), 0) / 3
-        );
-        outputTokens = Math.ceil(fullContent.length / 3);
-      }
-
-      const costSummary = recordChatCost(dataDir, actualModel, inputTokens, outputTokens);
+      const costSummary = recordChatCost(
+        dataDir,
+        provider,
+        result.model,
+        result.inputTokens,
+        result.outputTokens
+      );
 
       raw.write(
         `data: ${JSON.stringify({
           type: "done",
-          model: actualModel,
+          model: result.model,
           thinking: thinkingContent,
-          inputTokens,
-          outputTokens,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
           cost: costSummary.totalCost,
         })}\n\n`
       );

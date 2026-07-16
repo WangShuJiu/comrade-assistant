@@ -14,12 +14,37 @@ export interface Conversation {
   updatedAt: string;
   model: string;
   pinned?: boolean;
+  messages?: ChatMessage[];
+}
+
+export interface ModelInfo {
+  id: string;
+  name: string;
+  pricing: { input: number; output: number };
+  reasoning?: boolean;
+}
+
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  baseURL: string;
+  envKeyName: string;
+  models: ModelInfo[];
+  defaultModel: string;
+  type: "openai-compatible" | "anthropic";
 }
 
 export interface AppConfig {
+  provider: string;
+  apiKeys: Record<string, string>;
+  models: Record<string, string>;
   deepseekApiKey: string;
+  openaiApiKey: string;
+  anthropicApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
+  openaiModel: string;
+  anthropicModel: string;
   qwenModel: string;
   useAutoDetect: boolean;
   temperature: number;
@@ -39,7 +64,7 @@ export interface ProviderStats {
 
 export interface CostEntry {
   id?: number;
-  provider: "deepseek" | "qwen";
+  provider: string;
   model: string;
   action: "chat" | "vision" | "generate";
   inputTokens: number;
@@ -50,8 +75,9 @@ export interface CostEntry {
 }
 
 export interface CostSummary {
-  deepseek: ProviderStats;
-  qwen: ProviderStats;
+  providers: Record<string, ProviderStats>;
+  deepseek?: ProviderStats;
+  qwen?: ProviderStats;
   totalCost: number;
   recentEntries?: CostEntry[];
   entries?: CostEntry[];

@@ -14,9 +14,10 @@ import {
   Pin,
   Search,
 } from "lucide-react";
-import type { AppConfig, Conversation } from "../types";
+import type { AppConfig, Conversation, ProviderInfo } from "../types";
 import type { Theme } from "../hooks/useTheme";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { fetchProviders } from "../lib/api";
 
 interface SidebarProps {
   open: boolean;
@@ -337,6 +338,18 @@ function HistoryTab(props: SidebarProps) {
   );
 }
 
+const PROVIDER_KEY_FIELDS: Record<string, string> = {
+  deepseek: "deepseekApiKey",
+  openai: "openaiApiKey",
+  anthropic: "anthropicApiKey",
+};
+
+const PROVIDER_MODEL_FIELDS: Record<string, string> = {
+  deepseek: "deepseekModel",
+  openai: "openaiModel",
+  anthropic: "anthropicModel",
+};
+
 function SettingsTab({
   config,
   onSaveConfig,
@@ -346,6 +359,11 @@ function SettingsTab({
 }) {
   const [local, setLocal] = useState(config);
   const [saved, setSaved] = useState(false);
+  const [providers, setProviders] = useState<Record<string, ProviderInfo>>({});
+
+  useEffect(() => {
+    fetchProviders().then(setProviders).catch(() => {});
+  }, []);
 
   const handleSave = () => {
     onSaveConfig(local);
@@ -359,26 +377,69 @@ function SettingsTab({
     color: "var(--text-primary)",
   };
 
+  const currentProvider = providers[local.provider];
+  const currentModels = currentProvider?.models || [];
+  const currentModel = local.models[local.provider] || currentProvider?.defaultModel || "";
+
+  const getApiKey = (pid: string) => {
+    if (pid === "deepseek") return local.deepseekApiKey;
+    if (pid === "openai") return local.openaiApiKey;
+    if (pid === "anthropic") return local.anthropicApiKey;
+    return local.apiKeys[pid] || "";
+  };
+
+  const setApiKey = (pid: string, value: string) => {
+    if (pid === "deepseek") setLocal({ ...local, deepseekApiKey: value });
+    else if (pid === "openai") setLocal({ ...local, openaiApiKey: value });
+    else if (pid === "anthropic") setLocal({ ...local, anthropicApiKey: value });
+    else setLocal({ ...local, apiKeys: { ...local.apiKeys, [pid]: value } });
+  };
+
   return (
     <div className="py-2 px-3 space-y-4 text-sm">
+      {/* Provider selection */}
+      <div>
+        <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
+          <Key size={13} />
+          <span className="text-xs font-medium">服务商选择</span>
+        </div>
+        <select
+          value={local.provider}
+          onChange={(e) => setLocal({ ...local, provider: e.target.value })}
+          className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
+          style={inputStyle}
+        >
+          {Object.values(providers).map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* API Key for current provider */}
       <div>
         <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
           <Key size={13} />
           <span className="text-xs font-medium">API 密钥 (.env优先)</span>
         </div>
-        <label className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          DeepSeek API Key
-        </label>
-        <input
-          type="password"
-          value={local.deepseekApiKey}
-          onChange={(e) => setLocal({ ...local, deepseekApiKey: e.target.value })}
-          placeholder="sk-... or set DEEPSEEK_API_KEY in .env"
-          className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
-          style={{ ...inputStyle, borderColor: "var(--accent)", opacity: 0.5, borderWidth: "1px" }}
-        />
+
+        {Object.values(providers).map((p) => (
+          <div key={p.id}>
+            <label className="text-[10px] block mt-1.5" style={{ color: p.id === local.provider ? "var(--accent)" : "var(--text-muted)" }}>
+              {p.name} API Key
+            </label>
+            <input
+              type="password"
+              value={getApiKey(p.id)}
+              onChange={(e) => setApiKey(p.id, e.target.value)}
+              placeholder={`sk-... or set ${p.envKeyName} in .env`}
+              className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
+              style={p.id === local.provider ? { ...inputStyle, borderColor: "var(--accent)" } : { ...inputStyle, opacity: 0.6 }}
+            />
+          </div>
+        ))}
+
         <label className="text-[10px] block mt-2" style={{ color: "var(--text-muted)" }}>
-          Qwen API Key
+          Qwen (视觉) API Key
         </label>
         <input
           type="password"
@@ -386,27 +447,38 @@ function SettingsTab({
           onChange={(e) => setLocal({ ...local, qwenApiKey: e.target.value })}
           placeholder="sk-... or set QWEN_API_KEY in .env"
           className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
-          style={{ ...inputStyle, borderColor: "var(--accent)", opacity: 0.5, borderWidth: "1px" }}
+          style={{ ...inputStyle, opacity: 0.6 }}
         />
       </div>
 
+      {/* Model config */}
       <div>
         <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
           <SlidersHorizontal size={13} />
           <span className="text-xs font-medium">模型配置</span>
         </div>
-        <label className="text-[10px]" style={{ color: "var(--text-muted)" }}>
-          DeepSeek 模型
+
+        <label className="text-[10px]" style={{ color: "var(--accent)" }}>
+          {currentProvider?.name || local.provider} 模型
         </label>
         <select
-          value={local.deepseekModel}
-          onChange={(e) => setLocal({ ...local, deepseekModel: e.target.value })}
+          value={currentModel}
+          onChange={(e) => {
+            const newModels = { ...local.models, [local.provider]: e.target.value };
+            setLocal({ ...local, models: newModels });
+          }}
           className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
           style={inputStyle}
         >
-          <option value="deepseek-v4-pro">V4 Pro（深度思考）</option>
-          <option value="deepseek-v4-flash">V4 Flash（极速版）</option>
+          {currentModels.length > 0 ? (
+            currentModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))
+          ) : (
+            <option value="">-- 选择模型 --</option>
+          )}
         </select>
+
         <label className="text-[10px] block mt-2" style={{ color: "var(--text-muted)" }}>
           Qwen 视觉模型
         </label>
@@ -414,7 +486,7 @@ function SettingsTab({
           value={local.qwenModel}
           onChange={(e) => setLocal({ ...local, qwenModel: e.target.value })}
           className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
-          style={inputStyle}
+          style={{ ...inputStyle, opacity: 0.6 }}
         >
           <option value="qwen-vl-plus">VL Plus</option>
           <option value="qwen-vl-max">VL Max</option>

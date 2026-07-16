@@ -1,6 +1,6 @@
 import { DollarSign, Database, Eye, RefreshCw, BarChart3 } from "lucide-react";
 import { useState } from "react";
-import type { CostSummary } from "../types";
+import type { CostSummary, ProviderStats } from "../types";
 
 interface CostPanelProps {
   costSummary: CostSummary;
@@ -8,10 +8,31 @@ interface CostPanelProps {
   onRefresh: () => void;
 }
 
+const barColors: Record<string, string> = {
+  deepseek: "bg-indigo-400",
+  openai: "bg-emerald-400",
+  anthropic: "bg-orange-400",
+  qwen: "bg-cyan-400",
+};
+
+const textColors: Record<string, string> = {
+  deepseek: "text-indigo-400",
+  openai: "text-emerald-400",
+  anthropic: "text-orange-400",
+  qwen: "text-cyan-400",
+};
+
 export default function CostPanel({ costSummary, budget, onRefresh }: CostPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const remaining = Math.max(0, budget - costSummary.totalCost);
   const usedPercent = Math.min(100, (costSummary.totalCost / budget) * 100);
+
+  const providers: Record<string, ProviderStats> = costSummary.providers || {};
+  if (!providers || Object.keys(providers).length === 0) {
+    if (costSummary.deepseek) providers.deepseek = costSummary.deepseek;
+    if (costSummary.qwen) providers.qwen = costSummary.qwen;
+  }
+  const providerIds = Object.keys(providers);
 
   return (
     <div className="flex-shrink-0" style={{
@@ -56,48 +77,37 @@ export default function CostPanel({ costSummary, budget, onRefresh }: CostPanelP
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg p-2.5" style={{
-              backgroundColor: 'var(--card-bg)',
-              border: '1px solid var(--border-color)',
-            }}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Database size={12} className="text-indigo-400" />
-                <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>DeepSeek</span>
-              </div>
-              <div className="space-y-1">
-                <Row label="调用" value={costSummary.deepseek.calls} />
-                <Row label="输入" value={`${(costSummary.deepseek.inputTokens / 1000).toFixed(1)}K`} />
-                <Row label="输出" value={`${(costSummary.deepseek.outputTokens / 1000).toFixed(1)}K`} />
-                <div className="flex justify-between text-[10px] pt-1" style={{ borderTop: '1px solid var(--border-color)' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>费用</span>
-                  <span className="font-mono font-medium text-indigo-400">
-                    ${costSummary.deepseek.cost.toFixed(4)}
-                  </span>
+          <div className={`grid gap-2 ${providerIds.length <= 2 ? 'grid-cols-2' : 'grid-cols-2'}`}>
+            {providerIds.map((pid) => {
+              const stats = providers[pid];
+              return (
+                <div key={pid} className="rounded-lg p-2.5" style={{
+                  backgroundColor: 'var(--card-bg)',
+                  border: '1px solid var(--border-color)',
+                }}>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <div className={`w-2 h-2 rounded-full ${barColors[pid] || 'bg-gray-400'}`} />
+                    <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>
+                      {pid.charAt(0).toUpperCase() + pid.slice(1)}
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <Row label="调用" value={stats.calls} />
+                    <Row label="输入" value={`${(stats.inputTokens / 1000).toFixed(1)}K`} />
+                    <Row label="输出" value={`${(stats.outputTokens / 1000).toFixed(1)}K`} />
+                    {stats.imagesGenerated !== undefined && (
+                      <Row label="图片" value={stats.imagesGenerated} />
+                    )}
+                    <div className="flex justify-between text-[10px] pt-1" style={{ borderTop: '1px solid var(--border-color)' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>费用</span>
+                      <span className={`font-mono font-medium ${textColors[pid] || ''}`}>
+                        ${stats.cost.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="rounded-lg p-2.5" style={{
-              backgroundColor: 'var(--card-bg)',
-              border: '1px solid var(--border-color)',
-            }}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <Eye size={12} className="text-emerald-400" />
-                <span className="text-[10px] font-medium" style={{ color: 'var(--text-secondary)' }}>Qwen</span>
-              </div>
-              <div className="space-y-1">
-                <Row label="调用" value={costSummary.qwen.calls} />
-                <Row label="Token" value={`${(costSummary.qwen.inputTokens / 1000).toFixed(1)}K`} />
-                <Row label="图片" value={costSummary.qwen.imagesGenerated || 0} />
-                <div className="flex justify-between text-[10px] pt-1" style={{ borderTop: '1px solid var(--border-color)' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>费用</span>
-                  <span className="font-mono font-medium text-emerald-400">
-                    ${costSummary.qwen.cost.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: '1px solid var(--border-color)' }}>

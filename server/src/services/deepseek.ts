@@ -1,5 +1,4 @@
 import OpenAI from "openai";
-import type { FastifyRequest } from "fastify";
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
@@ -33,8 +32,8 @@ export function createStreamOptions(
   };
 
   if (isThinkingModel(model)) {
-    (opts as Record<string, unknown>).reasoning_effort = "high";
-    (opts as Record<string, unknown>).extra_body = { thinking: { type: "enabled" } };
+    (opts as unknown as Record<string, unknown>).reasoning_effort = "high";
+    (opts as unknown as Record<string, unknown>).extra_body = { thinking: { type: "enabled" } };
   }
 
   return opts;
@@ -65,11 +64,6 @@ export async function withRetry<T>(
   throw new Error(`${operation} 失败（已重试 ${maxRetries} 次）：${lastError?.message}`);
 }
 
-/**
- * Token 滑动窗口截断机制
- * 保留 system prompt + 最近 N 轮的 user/assistant 消息
- * 确保总 token 数不超过 maxTokens 的预留比例
- */
 export function applySlidingWindow(
   messages: OpenAI.Chat.ChatCompletionMessageParam[],
   maxTokens: number,
@@ -78,11 +72,9 @@ export function applySlidingWindow(
   const systemMsg = messages.find((m) => m.role === "system");
   const history = messages.filter((m) => m.role !== "system");
 
-  // 限制历史轮次 (每轮 = user + assistant，即 2 条)
   const maxMessages = maxRounds * 2;
   let truncated = history.slice(-maxMessages);
 
-  // Token 预算估算：中文约 1.5 字符/token，英文约 4 字符/token，取保守 2
   function estimateTokens(text: string): number {
     if (typeof text !== "string") return 0;
     return Math.ceil(text.length / 2);
@@ -91,7 +83,6 @@ export function applySlidingWindow(
   let totalEstimate = estimateTokens(systemMsg?.content as string || "");
   const result: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-  // 从最新的消息开始累加，超过预算 70% 时停止
   const budgetLimit = Math.floor(maxTokens * 0.7);
 
   for (let i = truncated.length - 1; i >= 0; i--) {

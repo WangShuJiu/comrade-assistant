@@ -1,8 +1,9 @@
 import { getDb } from "./database.js";
+import { getModelPricing } from "./providers/registry.js";
 
 export interface CostEntry {
   id?: number;
-  provider: "deepseek" | "qwen";
+  provider: string;
   model: string;
   action: "chat" | "vision" | "generate";
   inputTokens: number;
@@ -20,16 +21,12 @@ export interface ProviderStats {
 }
 
 export interface CostSummary {
-  deepseek: ProviderStats;
-  qwen: ProviderStats;
+  providers: Record<string, ProviderStats>;
   totalCost: number;
   recentEntries: CostEntry[];
 }
 
-const PRICING: Record<string, { input: number; output: number }> = {
-  "deepseek-v4-pro": { input: 0.55, output: 2.19 },
-  "deepseek-v4-flash": { input: 0.14, output: 0.55 },
-  "deepseek-chat": { input: 0.14, output: 0.28 },
+const QWEN_PRICING: Record<string, { input: number; output: number }> = {
   "qwen-vl-plus": { input: 0.0015, output: 0.0045 },
   "qwen-vl-max": { input: 0.003, output: 0.009 },
   "wanx-v1": { input: 0, output: 0 },
@@ -38,7 +35,7 @@ const PRICING: Record<string, { input: number; output: number }> = {
 const IMAGE_GEN_COST = 0.06;
 
 function calcCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = PRICING[model] || PRICING["deepseek-chat"];
+  const pricing = getModelPricing(model) || QWEN_PRICING[model] || { input: 0, output: 0 };
   return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
 }
 
@@ -71,15 +68,17 @@ export function loadCosts(dataDir: string): CostSummary {
     calls: number;
   }[];
 
-  const deepseek =
-    stats.find((s) => s.provider === "deepseek") ||
-    ({ input_tokens: 0, output_tokens: 0, cost: 0, calls: 0 } as any);
-
-  const qwenData = stats.find((s) => s.provider === "qwen");
-  const genCount = (d.prepare(`SELECT COUNT(*) as cnt FROM usage_log WHERE provider='qwen' AND action='generate'`).get() as Record<string, number>)?.cnt || 0;
-  const qwen: ProviderStats = qwenData
-    ? { ...qwenData, imagesGenerated: genCount }
-    : { inputTokens: 0, outputTokens: 0, cost: 0, calls: 0, imagesGenerated: genCount };
+  const providers: Record<string, ProviderStats> = {};
+  for (const s of stats) {
+    const genCount = (d.prepare(`SELECT COUNT(*) as cnt FROM usage_log WHERE provider=? AND action='generate'`).get(s.provider) as Record<string, number>)?.cnt || 0;
+    providers[s.provider] = {
+      inputTokens: s.input_tokens,
+      outputTokens: s.output_tokens,
+      cost: s.cost,
+      calls: s.calls,
+      imagesGenerated: genCount,
+    };
+  }
 
   const totalRow = d.prepare(`SELECT SUM(cost) as total FROM usage_log`).get() as { total: number };
   const totalCost = totalRow?.total || 0;
@@ -88,18 +87,19 @@ export function loadCosts(dataDir: string): CostSummary {
     .prepare(`SELECT * FROM usage_log ORDER BY id DESC LIMIT 50`)
     .all() as CostEntry[];
 
-  return { deepseek, qwen, totalCost, recentEntries };
+  return { providers, totalCost, recentEntries };
 }
 
 export function recordChatCost(
   dataDir: string,
+  provider: string,
   model: string,
   inputTokens: number,
   outputTokens: number
 ): CostSummary {
   const cost = calcCost(model, inputTokens, outputTokens);
   insertUsage(dataDir, {
-    provider: "deepseek",
+    provider,
     model,
     action: "chat",
     inputTokens,
@@ -112,11 +112,12 @@ export function recordChatCost(
 export function recordVisionCost(
   dataDir: string,
   qwenModel: string,
-  deepseekModel: string,
+  reasoningProvider: string,
+  reasoningModel: string,
   qwenInput: number,
   qwenOutput: number,
-  dsInput: number,
-  dsOutput: number
+  reasoningInput: number,
+  reasoningOutput: number
 ): CostSummary {
   const qwenCost = calcCost(qwenModel, qwenInput, qwenOutput);
   insertUsage(dataDir, {
@@ -128,14 +129,14 @@ export function recordVisionCost(
     cost: qwenCost,
   });
 
-  const dsCost = calcCost(deepseekModel, dsInput, dsOutput);
+  const reasoningCost = calcCost(reasoningModel, reasoningInput, reasoningOutput);
   insertUsage(dataDir, {
-    provider: "deepseek",
-    model: deepseekModel,
+    provider: reasoningProvider,
+    model: reasoningModel,
     action: "chat",
-    inputTokens: dsInput,
-    outputTokens: dsOutput,
-    cost: dsCost,
+    inputTokens: reasoningInput,
+    outputTokens: reasoningOutput,
+    cost: reasoningCost,
   });
 
   return loadCosts(dataDir);

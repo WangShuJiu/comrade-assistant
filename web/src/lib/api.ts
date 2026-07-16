@@ -1,4 +1,4 @@
-import type { AppConfig, CostSummary, Conversation, ImageGenResponse, StreamEvent } from "../types";
+import type { AppConfig, CostSummary, Conversation, ImageGenResponse, ProviderInfo, StreamEvent } from "../types";
 
 const BASE = "/api";
 
@@ -13,6 +13,11 @@ export async function saveConfig(config: Partial<AppConfig>): Promise<AppConfig>
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
   });
+  return res.json();
+}
+
+export async function fetchProviders(): Promise<Record<string, ProviderInfo>> {
+  const res = await fetch(`${BASE}/providers`);
   return res.json();
 }
 
@@ -62,9 +67,11 @@ export async function togglePin(id: string): Promise<{ id: string; pinned: boole
 
 export function streamChat(
   body: {
-    apiKey: string;
+    provider: string;
+    apiKey?: string;
     model: string;
     messages: { role: string; content: string }[];
+    apiKeys?: Record<string, string>;
     useAutoDetect: boolean;
     temperature: number;
     systemPrompt: string;
@@ -113,10 +120,13 @@ export function streamChat(
 
 export function streamVision(
   body: {
-    deepseekApiKey: string;
+    deepseekApiKey?: string;
     qwenApiKey: string;
-    deepseekModel: string;
+    deepseekModel?: string;
     qwenModel: string;
+    provider?: string;
+    apiKey?: string;
+    apiKeys?: Record<string, string>;
     imageBase64: string;
     mimeType: string;
     userQuestion: string;
