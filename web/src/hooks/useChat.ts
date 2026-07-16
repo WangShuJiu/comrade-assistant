@@ -36,24 +36,14 @@ export function useChat(options: UseChatOptions) {
 
   const getProviderApiKey = useCallback(
     (providerId: string): string => {
-      const keyMap: Record<string, string> = {
-        deepseek: options.deepseekApiKey,
-        openai: options.apiKeys.openai || "",
-        anthropic: options.apiKeys.anthropic || "",
-      };
-      return options.apiKeys[providerId] || keyMap[providerId] || "";
+      return options.apiKeys[providerId] || options.deepseekApiKey || "";
     },
     [options.apiKeys, options.deepseekApiKey]
   );
 
   const getProviderModel = useCallback(
     (providerId: string): string => {
-      const modelMap: Record<string, string> = {
-        deepseek: options.deepseekModel,
-        openai: options.models.openai || "gpt-4.1",
-        anthropic: options.models.anthropic || "claude-sonnet-4-20250514",
-      };
-      return options.models[providerId] || modelMap[providerId] || "";
+      return options.models[providerId] || options.deepseekModel || "";
     },
     [options.models, options.deepseekModel]
   );

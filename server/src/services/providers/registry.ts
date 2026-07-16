@@ -44,6 +44,19 @@ export const PROVIDERS: Record<string, ProviderInfo> = {
       { id: "claude-3.5-haiku", name: "Claude 3.5 Haiku", pricing: { input: 0.8, output: 4.0 } },
     ],
   },
+  gemini: {
+    id: "gemini",
+    name: "Google Gemini",
+    baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
+    envKeyName: "GEMINI_API_KEY",
+    type: "openai-compatible",
+    defaultModel: "gemini-2.5-pro",
+    models: [
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", pricing: { input: 1.25, output: 10.0 } },
+      { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", pricing: { input: 0.15, output: 0.6 } },
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", pricing: { input: 0.1, output: 0.4 } },
+    ],
+  },
 };
 
 export function getProvider(id: string): ProviderInfo | undefined {

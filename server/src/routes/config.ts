@@ -8,10 +8,12 @@ interface AppConfig {
   deepseekApiKey: string;
   openaiApiKey: string;
   anthropicApiKey: string;
+  geminiApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
   openaiModel: string;
   anthropicModel: string;
+  geminiModel: string;
   qwenModel: string;
   useAutoDetect: boolean;
   temperature: number;
@@ -28,10 +30,12 @@ const DEFAULT_CONFIG: AppConfig = {
   deepseekApiKey: "",
   openaiApiKey: "",
   anthropicApiKey: "",
+  geminiApiKey: "",
   qwenApiKey: "",
   deepseekModel: "deepseek-v4-pro",
   openaiModel: "gpt-4.1",
   anthropicModel: "claude-sonnet-4-20250514",
+  geminiModel: "gemini-2.5-pro",
   qwenModel: "qwen-vl-plus",
   useAutoDetect: true,
   temperature: 0.3,

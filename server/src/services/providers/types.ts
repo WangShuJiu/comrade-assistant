@@ -1,4 +1,4 @@
-export type ProviderId = "deepseek" | "openai" | "anthropic";
+export type ProviderId = "deepseek" | "openai" | "anthropic" | "gemini";
 
 export interface ModelInfo {
   id: string;

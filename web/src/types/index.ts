@@ -41,10 +41,12 @@ export interface AppConfig {
   deepseekApiKey: string;
   openaiApiKey: string;
   anthropicApiKey: string;
+  geminiApiKey: string;
   qwenApiKey: string;
   deepseekModel: string;
   openaiModel: string;
   anthropicModel: string;
+  geminiModel: string;
   qwenModel: string;
   useAutoDetect: boolean;
   temperature: number;

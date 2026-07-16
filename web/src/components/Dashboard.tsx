@@ -46,6 +46,7 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
     deepseek: "bg-indigo-500",
     openai: "bg-emerald-500",
     anthropic: "bg-orange-500",
+    gemini: "bg-blue-500",
     qwen: "bg-cyan-500",
   };
 
@@ -53,12 +54,14 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
     deepseek: "text-indigo-400",
     openai: "text-emerald-400",
     anthropic: "text-orange-400",
+    gemini: "text-blue-400",
     qwen: "text-cyan-400",
   };
 
   const providerIcons: Record<string, React.ReactNode> = {
     openai: <Zap size={16} className="text-emerald-400" />,
     anthropic: <Database size={16} className="text-orange-400" />,
+    gemini: <Zap size={16} className="text-blue-400" />,
     qwen: <Eye size={16} className="text-cyan-400" />,
   };
 

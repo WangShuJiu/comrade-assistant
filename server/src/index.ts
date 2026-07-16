@@ -44,6 +44,7 @@ server.get("/api/env-keys", async () => ({
   deepseekApiKey: !!process.env.DEEPSEEK_API_KEY,
   openaiApiKey: !!process.env.OPENAI_API_KEY,
   anthropicApiKey: !!process.env.ANTHROPIC_API_KEY,
+  geminiApiKey: !!process.env.GEMINI_API_KEY,
   qwenApiKey: !!process.env.QWEN_API_KEY,
 }));
 
@@ -81,6 +82,7 @@ try {
   if (process.env.DEEPSEEK_API_KEY) console.log("   ✅ DEEPSEEK_API_KEY loaded from .env");
   if (process.env.OPENAI_API_KEY) console.log("   ✅ OPENAI_API_KEY loaded from .env");
   if (process.env.ANTHROPIC_API_KEY) console.log("   ✅ ANTHROPIC_API_KEY loaded from .env");
+  if (process.env.GEMINI_API_KEY) console.log("   ✅ GEMINI_API_KEY loaded from .env");
   if (process.env.QWEN_API_KEY) console.log("   ✅ QWEN_API_KEY loaded from .env\n");
 } catch (err) {
   server.log.error(err);

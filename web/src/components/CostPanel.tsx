@@ -12,6 +12,7 @@ const barColors: Record<string, string> = {
   deepseek: "bg-indigo-400",
   openai: "bg-emerald-400",
   anthropic: "bg-orange-400",
+  gemini: "bg-blue-400",
   qwen: "bg-cyan-400",
 };
 
@@ -19,6 +20,7 @@ const textColors: Record<string, string> = {
   deepseek: "text-indigo-400",
   openai: "text-emerald-400",
   anthropic: "text-orange-400",
+  gemini: "text-blue-400",
   qwen: "text-cyan-400",
 };
 

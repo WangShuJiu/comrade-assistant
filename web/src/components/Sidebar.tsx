@@ -338,18 +338,6 @@ function HistoryTab(props: SidebarProps) {
   );
 }
 
-const PROVIDER_KEY_FIELDS: Record<string, string> = {
-  deepseek: "deepseekApiKey",
-  openai: "openaiApiKey",
-  anthropic: "anthropicApiKey",
-};
-
-const PROVIDER_MODEL_FIELDS: Record<string, string> = {
-  deepseek: "deepseekModel",
-  openai: "openaiModel",
-  anthropic: "anthropicModel",
-};
-
 function SettingsTab({
   config,
   onSaveConfig,
@@ -382,17 +370,11 @@ function SettingsTab({
   const currentModel = local.models[local.provider] || currentProvider?.defaultModel || "";
 
   const getApiKey = (pid: string) => {
-    if (pid === "deepseek") return local.deepseekApiKey;
-    if (pid === "openai") return local.openaiApiKey;
-    if (pid === "anthropic") return local.anthropicApiKey;
     return local.apiKeys[pid] || "";
   };
 
   const setApiKey = (pid: string, value: string) => {
-    if (pid === "deepseek") setLocal({ ...local, deepseekApiKey: value });
-    else if (pid === "openai") setLocal({ ...local, openaiApiKey: value });
-    else if (pid === "anthropic") setLocal({ ...local, anthropicApiKey: value });
-    else setLocal({ ...local, apiKeys: { ...local.apiKeys, [pid]: value } });
+    setLocal({ ...local, apiKeys: { ...local.apiKeys, [pid]: value } });
   };
 
   return (
@@ -415,7 +397,7 @@ function SettingsTab({
         </select>
       </div>
 
-      {/* API Key for current provider */}
+      {/* API Key for each provider */}
       <div>
         <div className="flex items-center gap-1.5 mb-2" style={{ color: "var(--text-muted)" }}>
           <Key size={13} />
@@ -431,7 +413,7 @@ function SettingsTab({
               type="password"
               value={getApiKey(p.id)}
               onChange={(e) => setApiKey(p.id, e.target.value)}
-              placeholder={`sk-... or set ${p.envKeyName} in .env`}
+              placeholder={`... or set ${p.envKeyName} in .env`}
               className="w-full mt-1 px-3 py-1.5 rounded-md text-xs focus:outline-none"
               style={p.id === local.provider ? { ...inputStyle, borderColor: "var(--accent)" } : { ...inputStyle, opacity: 0.6 }}
             />
