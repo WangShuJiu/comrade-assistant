@@ -30,7 +30,7 @@ interface ChatAreaProps {
   streamingThinking: string;
   visionDescription: string | null;
   error: string | null;
-  onSend: (content: string, imageBase64?: string, mimeType?: string) => void;
+  onSend: (content: string, images?: { base64: string; mimeType: string }[]) => void;
   onCancel: () => void;
   config: AppConfig;
   sidebarOpen: boolean;
@@ -61,11 +61,11 @@ export default function ChatArea({
   onRetry,
 }: ChatAreaProps) {
   const [input, setInput] = useState("");
-  const [uploadedImage, setUploadedImage] = useState<{
+  const [uploadedImages, setUploadedImages] = useState<{
     base64: string;
     mimeType: string;
     previewUrl: string;
-  } | null>(null);
+  }[]>([]);
   const [showImageGen, setShowImageGen] = useState(false);
   const [genPrompt, setGenPrompt] = useState("");
   const [genResult, setGenResult] = useState<string[]>([]);
@@ -97,7 +97,7 @@ export default function ChatArea({
 
   const handleSubmit = () => {
     const trimmed = input.trim();
-    if (!trimmed && !uploadedImage) return;
+    if (!trimmed && uploadedImages.length === 0) return;
     if (isStreaming) return;
 
     // Check for /draw command
@@ -110,9 +110,11 @@ export default function ChatArea({
       return;
     }
 
-    if (uploadedImage) {
-      onSend(trimmed || "请分析这张图片", uploadedImage.base64, uploadedImage.mimeType);
-      setUploadedImage(null);
+    if (uploadedImages.length > 0) {
+      const images = uploadedImages.map((img) => ({ base64: img.base64, mimeType: img.mimeType }));
+      const hasPdf = images.some((img) => img.mimeType === "application/pdf");
+      onSend(trimmed || (hasPdf ? "请分析这份PDF文档" : "请分析这张图片"), images);
+      setUploadedImages([]);
     } else {
       onSend(trimmed);
     }
@@ -127,25 +129,33 @@ export default function ChatArea({
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    readImageFile(file);
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+      readImageFile(files[i]);
+    }
     e.target.value = "";
   };
 
   const readImageFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      alert("请上传图片文件（JPEG, PNG, GIF, WebP）");
+    const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    const isImage = file.type.startsWith("image/");
+
+    if (!isImage && !isPdf) {
+      alert("请上传图片（JPEG, PNG, GIF, WebP）或 PDF 文件");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      alert("图片大小不能超过 10MB");
+
+    const maxSize = isPdf ? 20 * 1024 * 1024 : 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      alert(isPdf ? "PDF 文件大小不能超过 20MB" : "图片大小不能超过 10MB");
       return;
     }
+
     const reader = new FileReader();
     reader.onload = () => {
       const base64 = reader.result as string;
-      setUploadedImage({ base64, mimeType: file.type, previewUrl: base64 });
+      setUploadedImages((prev) => [...prev, { base64, mimeType: file.type || (isPdf ? "application/pdf" : "image/png"), previewUrl: base64 }]);
     };
     reader.readAsDataURL(file);
   };
@@ -155,7 +165,7 @@ export default function ChatArea({
     if (!items) return;
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      if (item.type.startsWith("image/")) {
+      if (item.type.startsWith("image/") || item.type === "application/pdf") {
         e.preventDefault();
         const file = item.getAsFile();
         if (file) readImageFile(file);
@@ -247,7 +257,7 @@ export default function ChatArea({
               开始对话
             </h2>
             <p className="text-sm max-w-sm" style={{ color: 'var(--text-muted)' }}>
-              输入你的编程问题，支持多轮上下文传递和图片分析。
+              输入你的编程问题，支持多轮上下文传递、图片分析和PDF文档分析。
               <br />使用 <code>/draw 描述</code> 指令生成图片。
             </p>
             <div className="flex gap-2 mt-4 flex-wrap justify-center">
@@ -458,17 +468,36 @@ export default function ChatArea({
       )}
 
       {/* Image preview */}
-      {uploadedImage && (
-        <div className="px-4 pb-1">
-          <div className="relative inline-block">
-            <img src={uploadedImage.previewUrl} alt="上传预览" className="max-h-24 rounded-lg"
-              style={{ border: '1px solid var(--border-color)' }} />
-            <button onClick={() => setUploadedImage(null)}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-xs text-white"
-              style={{ backgroundColor: 'var(--danger)' }}>
-              ×
-            </button>
-          </div>
+      {uploadedImages.length > 0 && (
+        <div className="px-4 pb-1 flex gap-2 flex-wrap">
+          {uploadedImages.map((img, idx) => {
+            const isPdf = img.mimeType === "application/pdf";
+            return (
+              <div key={idx} className="relative inline-block">
+                {isPdf ? (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg max-h-24"
+                    style={{ border: '1px solid var(--border-color)', backgroundColor: 'var(--input-bg)' }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" strokeWidth="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                      <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                    <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>PDF</span>
+                  </div>
+                ) : (
+                  <img src={img.previewUrl} alt="上传预览" className="max-h-24 rounded-lg"
+                    style={{ border: '1px solid var(--border-color)' }} />
+                )}
+                <button onClick={() => setUploadedImages((prev) => prev.filter((_, i) => i !== idx))}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-xs text-white"
+                  style={{ backgroundColor: 'var(--danger)' }}>
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -476,9 +505,9 @@ export default function ChatArea({
       <div className="px-4 py-3 flex-shrink-0" style={{ borderTop: '1px solid var(--border-color)' }}>
         <div className="flex items-end gap-2">
           <div className="flex gap-1">
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            <input ref={fileInputRef} type="file" accept="image/*,application/pdf,.pdf" multiple onChange={handleFileUpload} className="hidden" />
             <button onClick={() => fileInputRef.current?.click()}
-              className="p-2 rounded-lg transition-colors" title="上传图片分析"
+              className="p-2 rounded-lg transition-colors" title="上传图片或PDF分析"
               style={{ color: 'var(--text-muted)' }}>
               <Paperclip size={17} />
             </button>
@@ -498,7 +527,7 @@ export default function ChatArea({
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={uploadedImage ? "输入关于图片的问题..." : "输入问题，Enter发送 · /draw 生成图片 · Shift+Enter换行 · Ctrl+V粘贴图片"}
+              placeholder={uploadedImages.length > 0 ? "输入关于文件的问题..." : "输入问题，Enter发送 · /draw 生成图片 · Shift+Enter换行 · Ctrl+V粘贴图片"}
               rows={1}
               className="w-full px-4 py-2.5 rounded-xl text-sm resize-none focus:outline-none"
               style={{
@@ -529,7 +558,7 @@ export default function ChatArea({
             </button>
           ) : (
             <button onClick={handleSubmit}
-              disabled={!input.trim() && !uploadedImage}
+              disabled={!input.trim() && uploadedImages.length === 0}
               className="p-2.5 rounded-xl transition-all flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)',

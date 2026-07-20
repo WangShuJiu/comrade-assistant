@@ -2,10 +2,10 @@ export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
   reasoning_content?: string;
-  image?: {
+  images?: {
     base64: string;
     mimeType: string;
-  };
+  }[];
 }
 
 export interface Conversation {

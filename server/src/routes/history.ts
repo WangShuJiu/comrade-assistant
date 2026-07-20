@@ -6,7 +6,7 @@ interface ChatMessage {
   role: string;
   content: string;
   reasoning_content?: string;
-  image?: { base64: string; mimeType: string };
+  images?: { base64: string; mimeType: string }[];
 }
 
 export function registerHistoryRoutes(server: FastifyInstance, dataDir: string) {

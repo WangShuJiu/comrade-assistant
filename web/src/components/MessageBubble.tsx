@@ -95,6 +95,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
   const isUser = message.role === "user";
   const [thinkingOpen, setThinkingOpen] = useState(isStreaming);
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [modalImageIndex, setModalImageIndex] = useState(0);
   const [copiedAll, setCopiedAll] = useState(false);
 
   const handleCopyAll = useCallback(async () => {
@@ -144,27 +145,30 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                 }
           }
         >
-          {/* User image display */}
-          {isUser && message.image && (
-            <div className="mb-2">
-              <img
-                src={message.image.base64}
-                alt="上传的图片"
-                className="max-w-[280px] max-h-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-contain"
-                style={{ border: "1px solid var(--border-color)" }}
-                onClick={() => setImageModalOpen(true)}
-              />
+          {/* User images display */}
+          {isUser && message.images && message.images.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {message.images.map((img, idx) => (
+                <img
+                  key={idx}
+                  src={img.base64}
+                  alt="上传的图片"
+                  className="max-w-[280px] max-h-[240px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity object-contain"
+                  style={{ border: "1px solid var(--border-color)" }}
+                  onClick={() => { setModalImageIndex(idx); setImageModalOpen(true); }}
+                />
+              ))}
             </div>
           )}
 
           {/* Image modal */}
-          {imageModalOpen && message.image && (
+          {imageModalOpen && message.images && message.images.length > 0 && (
             <div
               className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 cursor-pointer"
               onClick={() => setImageModalOpen(false)}
             >
               <img
-                src={message.image.base64}
+                src={message.images[modalImageIndex].base64}
                 alt="图片预览"
                 className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
               />

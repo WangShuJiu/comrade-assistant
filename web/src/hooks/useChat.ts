@@ -30,8 +30,7 @@ export function useChat(options: UseChatOptions) {
 
   const lastRequestRef = useRef<{
     content: string;
-    imageBase64?: string;
-    mimeType?: string;
+    images?: { base64: string; mimeType: string }[];
   } | null>(null);
 
   const getProviderApiKey = useCallback(
@@ -96,30 +95,31 @@ export function useChat(options: UseChatOptions) {
         }
         return prev;
       });
-      sendMessage(last.content, last.imageBase64, last.mimeType);
+      sendMessage(last.content, last.images);
     }
   }, [isStreaming]);
 
   const sendMessage = useCallback(
-    async (content: string, imageBase64?: string, mimeType?: string) => {
+    async (content: string, images?: { base64: string; mimeType: string }[]) => {
       setError(null);
       setStreamingContent("");
       setStreamingThinking("");
       setVisionDescription(null);
       setStage("idle");
 
-      lastRequestRef.current = { content, imageBase64, mimeType };
+      lastRequestRef.current = { content, images };
 
       const abort = new AbortController();
       abortRef.current = abort;
 
       let newMessages = [...messages];
 
-      if (imageBase64) {
+      if (images && images.length > 0) {
+        const hasPdf = images.some((img) => img.mimeType === "application/pdf");
         newMessages.push({
           role: "user",
-          content: content || "请分析这张图片",
-          image: { base64: imageBase64, mimeType: mimeType || "image/jpeg" },
+          content: content || (hasPdf ? "请分析这份PDF文档" : "请分析这张图片"),
+          images,
         });
       } else if (content) {
         newMessages.push({ role: "user", content });
@@ -155,8 +155,9 @@ export function useChat(options: UseChatOptions) {
           }
         };
 
-        if (imageBase64) {
+        if (images && images.length > 0) {
           const historyMessages = messages.filter((m) => m.role !== "system");
+          const hasPdf = images.some((img) => img.mimeType === "application/pdf");
           setStage("vision");
           await streamVision(
             {
@@ -167,9 +168,8 @@ export function useChat(options: UseChatOptions) {
               provider: options.provider,
               apiKey: getProviderApiKey(options.provider),
               apiKeys: options.apiKeys,
-              imageBase64,
-              mimeType: mimeType || "image/jpeg",
-              userQuestion: content || "请分析这张图片",
+              images,
+              userQuestion: content || (hasPdf ? "请分析这份PDF文档" : "请分析这张图片"),
               messages: historyMessages,
               useAutoDetect: options.useAutoDetect,
               temperature: options.temperature,

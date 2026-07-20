@@ -42,7 +42,7 @@ export async function saveHistory(conv: {
   id?: string;
   title: string;
   model: string;
-  messages: { role: string; content: string; reasoning_content?: string; image?: { base64: string; mimeType: string } }[];
+  messages: { role: string; content: string; reasoning_content?: string; images?: { base64: string; mimeType: string }[] }[];
 }): Promise<{ id: string }> {
   const res = await fetch(`${BASE}/history`, {
     method: "POST",
@@ -127,8 +127,7 @@ export function streamVision(
     provider?: string;
     apiKey?: string;
     apiKeys?: Record<string, string>;
-    imageBase64: string;
-    mimeType: string;
+    images: { base64: string; mimeType: string }[];
     userQuestion: string;
     messages: { role: string; content: string }[];
     useAutoDetect: boolean;

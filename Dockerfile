@@ -8,7 +8,7 @@ RUN npx vite build --logLevel warn
 FROM node:22-alpine AS runner
 WORKDIR /app
 
-RUN apk add --no-cache tini python3 make g++
+RUN apk add --no-cache tini python3 make g++ poppler-utils
 
 COPY server/package.json server/package-lock.json ./server/
 RUN cd server && npm ci
