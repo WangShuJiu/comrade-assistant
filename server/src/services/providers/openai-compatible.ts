@@ -80,6 +80,7 @@ export async function streamOpenAICompatible(
   let actualModel = model;
   let inputTokens = 0;
   let outputTokens = 0;
+  let cacheHitInputTokens = 0;
 
   for await (const chunk of stream) {
     if (signal?.aborted) break;
@@ -102,6 +103,10 @@ export async function streamOpenAICompatible(
     if (finalChunk.usage) {
       inputTokens = finalChunk.usage.prompt_tokens || 0;
       outputTokens = finalChunk.usage.completion_tokens || 0;
+      const details = finalChunk.usage.prompt_tokens_details;
+      if (details?.cached_tokens) {
+        cacheHitInputTokens = details.cached_tokens;
+      }
     }
   } catch {
     inputTokens = Math.ceil(
@@ -110,7 +115,7 @@ export async function streamOpenAICompatible(
     outputTokens = 0;
   }
 
-  return { model: actualModel, inputTokens, outputTokens };
+  return { model: actualModel, inputTokens, outputTokens, cacheHitInputTokens };
 }
 
 export function applySlidingWindow(

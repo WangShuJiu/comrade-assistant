@@ -229,7 +229,8 @@ ${visionResult.content}
         visionResult.inputTokens,
         visionResult.outputTokens,
         result.inputTokens,
-        result.outputTokens
+        result.outputTokens,
+        result.cacheHitInputTokens
       );
 
       raw.write(

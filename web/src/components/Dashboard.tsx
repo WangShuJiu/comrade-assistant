@@ -10,15 +10,16 @@ import {
   Zap,
   TrendingUp,
 } from "lucide-react";
-import type { CostSummary, ProviderStats } from "../types";
+import type { CostSummary, DeepSeekBalanceInfo, ProviderStats } from "../types";
 
 interface DashboardProps {
   costSummary: CostSummary;
   budget: number;
   onRefresh: () => void;
+  deepseekBalance: DeepSeekBalanceInfo | null;
 }
 
-export default function Dashboard({ costSummary, budget, onRefresh }: DashboardProps) {
+export default function Dashboard({ costSummary, budget, onRefresh, deepseekBalance }: DashboardProps) {
   const remaining = Math.max(0, budget - costSummary.totalCost);
   const usedPercent = Math.min(100, (costSummary.totalCost / budget) * 100);
 
@@ -132,6 +133,61 @@ export default function Dashboard({ costSummary, budget, onRefresh }: DashboardP
           <span>剩余 ${remaining.toFixed(2)}</span>
         </div>
       </div>
+
+      {/* DeepSeek 账户余额 */}
+      {deepseekBalance && (
+        <div className="rounded-xl p-5 mb-4"
+          style={{
+            background: `linear-gradient(135deg, #312e8130, transparent)`,
+            border: '1px solid var(--border-color)',
+          }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <TrendingUp size={18} className="text-indigo-400" />
+              <span className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>
+                DeepSeek 账户余额
+              </span>
+              <span className="text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: deepseekBalance.isAvailable ? '#05966920' : '#dc262620',
+                  color: deepseekBalance.isAvailable ? '#34d399' : '#f87171',
+                }}>
+                {deepseekBalance.isAvailable ? '可用' : '不可用'}
+              </span>
+            </div>
+            <a href="https://platform.deepseek.com/usage" target="_blank" rel="noopener noreferrer"
+              className="text-xs underline" style={{ color: 'var(--text-muted)' }}>
+              查看详情 →
+            </a>
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-mono font-bold" style={{ color: 'var(--text-primary)' }}>
+                {deepseekBalance.totalBalance}
+              </div>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                总余额 ({deepseekBalance.currency})
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-mono font-bold" style={{ color: 'var(--success)' }}>
+                {deepseekBalance.toppedUpBalance}
+              </div>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                充值余额
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-xl font-mono font-bold" style={{ color: 'var(--accent)' }}>
+                {deepseekBalance.grantedBalance}
+              </div>
+              <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                赠送余额
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3 mb-4">

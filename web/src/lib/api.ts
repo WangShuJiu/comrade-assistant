@@ -1,4 +1,4 @@
-import type { AppConfig, CostSummary, Conversation, ImageGenResponse, ProviderInfo, StreamEvent } from "../types";
+import type { AppConfig, CostSummary, Conversation, DeepSeekBalanceInfo, ImageGenResponse, ProviderInfo, StreamEvent } from "../types";
 
 const BASE = "/api";
 
@@ -23,6 +23,12 @@ export async function fetchProviders(): Promise<Record<string, ProviderInfo>> {
 
 export async function fetchUsage(): Promise<CostSummary> {
   const res = await fetch(`${BASE}/usage`);
+  return res.json();
+}
+
+export async function fetchBalance(apiKey?: string): Promise<{ deepseek: DeepSeekBalanceInfo | null }> {
+  const url = apiKey ? `${BASE}/balance?api_key=${encodeURIComponent(apiKey)}` : `${BASE}/balance`;
+  const res = await fetch(url);
   return res.json();
 }
 

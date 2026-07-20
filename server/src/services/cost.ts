@@ -26,17 +26,36 @@ export interface CostSummary {
   recentEntries: CostEntry[];
 }
 
-const QWEN_PRICING: Record<string, { input: number; output: number }> = {
+interface PricingInfo {
+  input: number;
+  output: number;
+  inputCacheHit?: number;
+}
+
+const QWEN_PRICING: Record<string, PricingInfo> = {
   "qwen-vl-plus": { input: 0.0015, output: 0.0045 },
   "qwen-vl-max": { input: 0.003, output: 0.009 },
   "wanx-v1": { input: 0, output: 0 },
 };
 
+const DEFAULT_PRICING: PricingInfo = { input: 0, output: 0 };
+
 const IMAGE_GEN_COST = 0.06;
 
-function calcCost(model: string, inputTokens: number, outputTokens: number): number {
-  const pricing = getModelPricing(model) || QWEN_PRICING[model] || { input: 0, output: 0 };
-  return (inputTokens / 1_000_000) * pricing.input + (outputTokens / 1_000_000) * pricing.output;
+function calcCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cacheHitInputTokens: number = 0
+): number {
+  const pricing: PricingInfo = getModelPricing(model) || QWEN_PRICING[model] || DEFAULT_PRICING;
+  const cacheMissInput = Math.max(0, inputTokens - cacheHitInputTokens);
+  const cacheHitPrice = pricing.inputCacheHit ?? pricing.input;
+  return (
+    (cacheMissInput / 1_000_000) * pricing.input +
+    (cacheHitInputTokens / 1_000_000) * cacheHitPrice +
+    (outputTokens / 1_000_000) * pricing.output
+  );
 }
 
 function insertUsage(dataDir: string, entry: CostEntry) {
@@ -95,9 +114,10 @@ export function recordChatCost(
   provider: string,
   model: string,
   inputTokens: number,
-  outputTokens: number
+  outputTokens: number,
+  cacheHitInputTokens: number = 0
 ): CostSummary {
-  const cost = calcCost(model, inputTokens, outputTokens);
+  const cost = calcCost(model, inputTokens, outputTokens, cacheHitInputTokens);
   insertUsage(dataDir, {
     provider,
     model,
@@ -117,7 +137,8 @@ export function recordVisionCost(
   qwenInput: number,
   qwenOutput: number,
   reasoningInput: number,
-  reasoningOutput: number
+  reasoningOutput: number,
+  reasoningCacheHit: number = 0
 ): CostSummary {
   const qwenCost = calcCost(qwenModel, qwenInput, qwenOutput);
   insertUsage(dataDir, {
@@ -129,7 +150,7 @@ export function recordVisionCost(
     cost: qwenCost,
   });
 
-  const reasoningCost = calcCost(reasoningModel, reasoningInput, reasoningOutput);
+  const reasoningCost = calcCost(reasoningModel, reasoningInput, reasoningOutput, reasoningCacheHit);
   insertUsage(dataDir, {
     provider: reasoningProvider,
     model: reasoningModel,

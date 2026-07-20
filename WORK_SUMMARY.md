@@ -157,6 +157,59 @@ Qwen VL (视觉模型) → 图片描述提取
 
 ---
 
+## 费用监控修复 & DeepSeek 实时余额查询
+
+### 问题
+
+软件内费用监控显示的金额与实际 DeepSeek API 平台 (https://platform.deepseek.com/usage) 不一致。根本原因有二：
+
+1. **定价过期**：代码中 DeepSeek V4 模型定价与实际官方定价严重不符
+2. **未区分 cache hit/miss**：DeepSeek 对 context caching 的 cache hit 和 cache miss 采用不同计费（cache hit ~120倍更便宜），原代码未解析此数据
+
+### 定价修正
+
+| 模型 | 原 input | 新 input | 原 output | 新 output | cache hit |
+|------|---------|---------|-----------|-----------|-----------|
+| `deepseek-v4-pro` | $0.55 | **$0.435** | $2.19 | **$0.87** | $0.003625 |
+| `deepseek-v4-flash` | $0.14 | $0.14 | $0.55 | **$0.28** | $0.0028 |
+
+### Cache Hit/Miss 分级计费
+
+DeepSeek API 返回的 `usage.prompt_tokens_details.cached_tokens` 字段被解析，用于区分缓存命中和未命中的输入 token：
+
+```
+cost = cacheMissTokens/1M * inputPrice + cacheHitTokens/1M * cacheHitPrice + outputTokens/1M * outputPrice
+```
+
+### DeepSeek 实时余额查询
+
+新增 `/api/balance` 端点，通过 DeepSeek 官方 API `GET /user/balance` 实时查询账户余额：
+
+- 总余额、充值余额、赠送余额
+- 账户可用状态
+- 监控大盘中实时展示，链接到平台使用详情页
+
+| 新增文件 | 说明 |
+|------|------|
+| `server/src/services/deepseek-balance.ts` | DeepSeek `GET /user/balance` API 调用服务 |
+
+| 修改文件 | 变更 |
+|------|------|
+| `server/src/services/providers/types.ts` | `ModelInfo.pricing` 新增 `inputCacheHit?`，`ChatStreamResult` 新增 `cacheHitInputTokens` |
+| `server/src/services/providers/registry.ts` | 更新 DeepSeek V4 定价为官方最新数据；`deepseek-chat` 标记为即将下线；`getModelPricing` 返回类型扩展 |
+| `server/src/services/providers/openai-compatible.ts` | 解析 `prompt_tokens_details.cached_tokens` 并返回 `cacheHitInputTokens` |
+| `server/src/services/providers/anthropic.ts` | `ChatStreamResult` 新增 `cacheHitInputTokens: 0`（暂不支持） |
+| `server/src/services/cost.ts` | `calcCost()` 支持 cache hit/miss 分级计费；`recordChatCost()` / `recordVisionCost()` 新增 `cacheHitInputTokens` 参数 |
+| `server/src/routes/chat.ts` | 传递 `cacheHitInputTokens` 至成本记录 |
+| `server/src/routes/vision.ts` | 传递 `cacheHitInputTokens` 至推理阶段成本记录 |
+| `server/src/routes/usage.ts` | 新增 `GET /api/balance` 端点，支持 `api_key` 查询参数和环境变量回退 |
+| `web/src/types/index.ts` | 新增 `DeepSeekBalanceInfo` 接口 |
+| `web/src/lib/api.ts` | 新增 `fetchBalance(apiKey?)` 函数 |
+| `web/src/components/Dashboard.tsx` | 新增 DeepSeek 账户余额卡片（总余额/充值/赠送）、可用状态指示、平台链接 |
+| `web/src/App.tsx` | 新增 `deepseekBalance` 状态和 `refreshBalance()` 回调；初始加载和刷新时同步查询余额 |
+
+---
+
 ## 运行方式
 
 ```bash

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import type { AppConfig, Conversation, CostSummary } from "./types";
-import { fetchConfig, saveConfig as saveConfigApi, fetchUsage, fetchHistories, fetchHistory, deleteHistory, togglePin } from "./lib/api";
+import type { AppConfig, Conversation, CostSummary, DeepSeekBalanceInfo } from "./types";
+import { fetchConfig, saveConfig as saveConfigApi, fetchUsage, fetchBalance, fetchHistories, fetchHistory, deleteHistory, togglePin } from "./lib/api";
 import { useChat } from "./hooks/useChat";
 import { useTheme } from "./hooks/useTheme";
 import Sidebar from "./components/Sidebar";
@@ -36,6 +36,7 @@ export default function App() {
     budget: 100,
   });
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
+  const [deepseekBalance, setDeepseekBalance] = useState<DeepSeekBalanceInfo | null>(null);
   const [histories, setHistories] = useState<Conversation[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [currentId, setCurrentId] = useState<string>(genId());
@@ -74,7 +75,10 @@ export default function App() {
   });
 
   useEffect(() => {
-    fetchConfig().then(setConfig).catch(() => {});
+    fetchConfig().then((cfg) => {
+      setConfig(cfg);
+      refreshBalance(cfg.deepseekApiKey || cfg.apiKeys?.deepseek);
+    }).catch(() => {});
     refreshUsage();
     refreshHistories();
   }, []);
@@ -83,6 +87,13 @@ export default function App() {
     try {
       const usage = await fetchUsage();
       setCostSummary(usage);
+    } catch {}
+  }, []);
+
+  const refreshBalance = useCallback(async (apiKey?: string) => {
+    try {
+      const data = await fetchBalance(apiKey);
+      setDeepseekBalance(data.deepseek);
     } catch {}
   }, []);
 
@@ -176,7 +187,8 @@ export default function App() {
             <Dashboard
               costSummary={costSummary}
               budget={config.budget}
-              onRefresh={refreshUsage}
+              onRefresh={() => { refreshUsage(); refreshBalance(config.deepseekApiKey || config.apiKeys?.deepseek); }}
+              deepseekBalance={deepseekBalance}
             />
           )
         ) : (

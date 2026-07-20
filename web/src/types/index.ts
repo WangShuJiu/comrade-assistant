@@ -107,3 +107,11 @@ export interface ImageGenResponse {
   taskId: string;
   cost: number;
 }
+
+export interface DeepSeekBalanceInfo {
+  isAvailable: boolean;
+  currency: string;
+  totalBalance: string;
+  grantedBalance: string;
+  toppedUpBalance: string;
+}

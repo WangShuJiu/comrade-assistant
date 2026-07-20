@@ -109,7 +109,8 @@ export function registerChatRoutes(server: FastifyInstance, dataDir: string) {
         provider,
         result.model,
         result.inputTokens,
-        result.outputTokens
+        result.outputTokens,
+        result.cacheHitInputTokens
       );
 
       raw.write(

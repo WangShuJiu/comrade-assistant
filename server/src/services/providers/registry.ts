@@ -9,9 +9,9 @@ export const PROVIDERS: Record<string, ProviderInfo> = {
     type: "openai-compatible",
     defaultModel: "deepseek-v4-pro",
     models: [
-      { id: "deepseek-v4-pro", name: "V4 Pro (深度思考)", pricing: { input: 0.55, output: 2.19 }, reasoning: true },
-      { id: "deepseek-v4-flash", name: "V4 Flash (极速版)", pricing: { input: 0.14, output: 0.55 } },
-      { id: "deepseek-chat", name: "Chat", pricing: { input: 0.14, output: 0.28 } },
+      { id: "deepseek-v4-pro", name: "V4 Pro (深度思考)", pricing: { input: 0.435, output: 0.87, inputCacheHit: 0.003625 }, reasoning: true },
+      { id: "deepseek-v4-flash", name: "V4 Flash (极速版)", pricing: { input: 0.14, output: 0.28, inputCacheHit: 0.0028 } },
+      { id: "deepseek-chat", name: "Chat (即将下线)", pricing: { input: 0.14, output: 0.28 } },
     ],
   },
   openai: {
@@ -63,7 +63,7 @@ export function getProvider(id: string): ProviderInfo | undefined {
   return PROVIDERS[id];
 }
 
-export function getModelPricing(modelId: string): { input: number; output: number } | null {
+export function getModelPricing(modelId: string): { input: number; output: number; inputCacheHit?: number } | null {
   for (const provider of Object.values(PROVIDERS)) {
     const model = provider.models.find((m) => m.id === modelId);
     if (model) return model.pricing;

@@ -101,5 +101,5 @@ export async function streamAnthropic(
     }
   }
 
-  return { model, inputTokens, outputTokens };
+  return { model, inputTokens, outputTokens, cacheHitInputTokens: 0 };
 }

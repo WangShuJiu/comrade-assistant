@@ -3,7 +3,7 @@ export type ProviderId = "deepseek" | "openai" | "anthropic" | "gemini";
 export interface ModelInfo {
   id: string;
   name: string;
-  pricing: { input: number; output: number };
+  pricing: { input: number; output: number; inputCacheHit?: number };
   reasoning?: boolean;
 }
 
@@ -31,6 +31,7 @@ export interface ChatStreamResult {
   model: string;
   inputTokens: number;
   outputTokens: number;
+  cacheHitInputTokens: number;
 }
 
 export type StreamChunkCallback = (chunk: {
