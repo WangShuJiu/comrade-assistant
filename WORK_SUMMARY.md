@@ -98,6 +98,65 @@ HOST=0.0.0.0
 
 ---
 
+---
+
+## 多图片上传 & PDF 文档分析
+
+### 概述
+
+将原本的单张图片上传扩展为**多图片 + PDF 文档**分析能力。支持同时上传多张图片进行批量视觉分析，以及 PDF 文档的逐页解析与描述。
+
+### 处理流程
+
+```
+用户上传 (多图/PDF)
+    │
+    ├─ 图片 → 直接转为 base64
+    │
+    └─ PDF → pdfToImages() (pdftocairo 每页渲染为 PNG)
+              │
+              └─ 多页图片 → 合并统一发送
+    │
+    ▼
+Qwen VL (视觉模型) → 图片描述提取
+    │
+    ▼
+推理模型 (DeepSeek/OpenAI/Anthropic) → 流式回答
+```
+
+### 新增文件
+
+| 文件 | 说明 |
+|------|------|
+| `server/src/services/pdf.ts` | PDF 转图片服务：使用 `pdftocairo` (poppler-utils) 将 PDF 每页渲染为 PNG，支持页数限制和 DPI 配置 |
+
+### 修改文件
+
+| 文件 | 变更 |
+|------|------|
+| `web/src/types/index.ts` | `ChatMessage.image` (单对象) → `images` (数组) |
+| `web/src/lib/api.ts` | `streamVision()` 参数：`imageBase64`/`mimeType` → `images[]` |
+| `web/src/hooks/useChat.ts` | `sendMessage()` / 重试逻辑适配多图数组 |
+| `web/src/components/ChatArea.tsx` | 多文件上传、PDF 文件支持、拖拽粘贴、多预览卡片（PDF 显示图标）/ 单独删除 |
+| `web/src/components/MessageBubble.tsx` | 多图片网格展示、图片弹窗支持多张预览 |
+| `server/src/routes/vision.ts` | PDF 解析流水线、自适应 Prompt（单图/多图/PDF）、多图片发送至 Qwen VL |
+| `server/src/routes/history.ts` | `ChatMessage.image` → `images` 类型 |
+| `Dockerfile` | 新增 `poppler-utils` 依赖（pdftocairo） |
+| `.env.example` | 文档化 `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
+
+### 功能特性
+
+- **多图片上传**：文件选择器支持多选（Ctrl/Shift），粘贴板支持多张图片
+- **PDF 文档分析**：上传 PDF → pdftocairo 按页渲染 → 逐页描述 → 推理模型综合分析
+- **PDF 页数限制**：默认最多处理 10 页，可通过 `pdfPagesLimit` 参数自定义
+- **自适应 Prompt**：
+  - 单张图片：「请详细描述这张图片...」
+  - 多张图片：「请详细描述以上所有图片...」
+  - PDF 文档：「以上是PDF文档的各页截图，请逐页详细描述...保持内容逻辑连贯性」
+- **文件大小限制**：图片 10MB，PDF 20MB
+
+---
+
 ## 运行方式
 
 ```bash
